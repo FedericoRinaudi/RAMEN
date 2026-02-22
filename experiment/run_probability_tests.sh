@@ -77,7 +77,8 @@ CAPTURE_PID=""
 # ─────────────────────────────────────────────────────────────────────────────
 
 update_probability() {
-    sudo "$CLIENT_PATH" update server1 "$1" "$2" > /dev/null 2>&1
+    sudo "$CLIENT_PATH" update server_query "$1" "$2" > /dev/null 2>&1
+    sudo "$CLIENT_PATH" update server_res   "$1" "$2" > /dev/null 2>&1
     sleep 1
 }
 

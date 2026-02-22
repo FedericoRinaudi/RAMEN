@@ -7,7 +7,7 @@ use std::sync::Arc;
 use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 
-const BIND_ADDRESS: &str = "0.0.0.0:8080";
+const DEFAULT_PORT: &str = "8080";
 // Dimensioni payload (senza overhead TLS/rete):
 //   client invia: 68 bytes → wire: 68 + 22 TLS + 54 net = 144 bytes
 //   server invia: 189 bytes → wire: 189 + 22 TLS + 54 net = 265 bytes
@@ -81,15 +81,20 @@ fn make_server_config() -> rustls::ServerConfig {
 fn main() {
     rustls::crypto::ring::default_provider().install_default().ok();
 
+    // Uso: [porta]  (default: 8080)
+    let args: Vec<String> = std::env::args().collect();
+    let port = args.get(1).map(|s| s.as_str()).unwrap_or(DEFAULT_PORT);
+    let bind_address = format!("0.0.0.0:{}", port);
+
     let tls_config = Arc::new(make_server_config());
-    let listener = TcpListener::bind(BIND_ADDRESS).unwrap();
-    println!("Server TLS in ascolto su {}", BIND_ADDRESS);
+    let listener = TcpListener::bind(&bind_address).unwrap();
+    println!("Server TLS in ascolto su {}", bind_address);
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 let config = Arc::clone(&tls_config);
-                thread::spawn(|| {
+                thread::spawn(move || {
                     handle_client(stream, config);
                 });
             }
