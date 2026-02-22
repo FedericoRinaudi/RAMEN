@@ -2,8 +2,17 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::thread;
 use std::os::unix::io::AsRawFd;
+use std::sync::Arc;
+
+use rcgen::{generate_simple_self_signed, CertifiedKey};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 
 const BIND_ADDRESS: &str = "0.0.0.0:8080";
+// Dimensioni payload (senza overhead TLS/rete):
+//   client invia: 68 bytes → wire: 68 + 22 TLS + 54 net = 144 bytes
+//   server invia: 189 bytes → wire: 189 + 22 TLS + 54 net = 265 bytes
+const BYTES_TO_RECEIVE: usize = 68;
+const BYTES_TO_SEND: usize = 189;
 
 fn set_tcp_quickack(stream: &TcpStream, enable: bool) {
     unsafe {
@@ -18,61 +27,70 @@ fn set_tcp_quickack(stream: &TcpStream, enable: bool) {
     }
 }
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(stream: TcpStream, tls_config: Arc<rustls::ServerConfig>) {
     println!("Nuova connessione da: {}", stream.peer_addr().unwrap());
-    
-    // Imposta TCP_NODELAY per inviare immediatamente i dati senza buffering
+
+    // Opzioni socket sul raw TcpStream prima del wrapping TLS
     stream.set_nodelay(true).ok();
-    
-    // Disabilita TCP_QUICKACK subito, prima di qualsiasi I/O
     set_tcp_quickack(&stream, false);
-    
-    let mut buffer = vec![0u8; 65536]; // Buffer di 64KB per ricevere dati
-    
-    let bytes_to_receive = 90; //+ 54 di header fissi
-    
-    match stream.read_exact(&mut buffer[..bytes_to_receive]) {
-        Ok(_) => {
-            //println!("Ricevuti {} bytes", bytes_to_receive);
-        },
-        Err(e) => {
-            eprintln!("Errore nella lettura: {}", e);
-            return;
-        }
+
+    let conn = match rustls::ServerConnection::new(tls_config) {
+        Ok(c) => c,
+        Err(e) => { eprintln!("Errore creazione connessione TLS server: {}", e); return; }
+    };
+    let mut tls = rustls::StreamOwned::new(conn, stream);
+
+    let mut buffer = vec![0u8; 65536];
+
+    match tls.read_exact(&mut buffer[..BYTES_TO_RECEIVE]) {
+        Ok(_) => {}
+        Err(e) => { eprintln!("Errore nella lettura: {}", e); return; }
     }
-    
-    let bytes_to_send = 211; //+ 54 di header fissi
-    
-    // Invia la risposta
-    let response = vec![0u8; bytes_to_send];
-    match stream.write_all(&response) {
-        Ok(_) => {
-            //println!("Inviati {} bytes in risposta", bytes_to_send);
-        },
-        Err(e) => {
-            eprintln!("Errore nell'invio: {}", e);
-            return;
-        }
+
+    let response = vec![0u8; BYTES_TO_SEND];
+    match tls.write_all(&response) {
+        Ok(_) => {}
+        Err(e) => { eprintln!("Errore nell'invio: {}", e); return; }
     }
-    
-    // Aspetta il FIN dal client leggendo fino a EOF
+    let _ = tls.flush();
+
+    // Aspetta il FIN dal client
     let mut buf = [0u8; 1];
-    let _ = stream.read(&mut buf); // Legge fino a quando il client chiude (FIN)
-    
-    // Chiudi solo la scrittura per inviare FIN-ACK
-    // SO_LINGER si occuperà di aspettare che il FIN venga confermato
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = tls.read(&mut buf);
+
+    // TLS close_notify + TCP FIN
+    tls.conn.send_close_notify();
+    let _ = tls.flush();
+    let _ = tls.sock.shutdown(Shutdown::Write);
+}
+
+fn make_server_config() -> rustls::ServerConfig {
+    let CertifiedKey { cert, key_pair } = generate_simple_self_signed(
+        vec!["experiment.server".to_string()]
+    ).expect("Errore nella generazione del certificato autofirmato");
+
+    let cert_der = CertificateDer::from(cert.der().as_ref().to_vec());
+    let key_der = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_pair.serialize_der()));
+
+    rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(vec![cert_der], key_der)
+        .expect("Errore nella configurazione TLS server")
 }
 
 fn main() {
+    rustls::crypto::ring::default_provider().install_default().ok();
+
+    let tls_config = Arc::new(make_server_config());
     let listener = TcpListener::bind(BIND_ADDRESS).unwrap();
-    println!("Server in ascolto su {}", BIND_ADDRESS);
-    
+    println!("Server TLS in ascolto su {}", BIND_ADDRESS);
+
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
+                let config = Arc::clone(&tls_config);
                 thread::spawn(|| {
-                    handle_client(stream);
+                    handle_client(stream, config);
                 });
             }
             Err(e) => {
