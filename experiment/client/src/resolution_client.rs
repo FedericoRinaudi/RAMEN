@@ -37,7 +37,7 @@ impl ServerCertVerifier for NoVerifier {
         Ok(ServerCertVerified::assertion())
     }
 
-    fn verify_tls12_sig(
+    fn verify_tls12_signature(
         &self,
         _message: &[u8],
         _cert: &CertificateDer<'_>,
@@ -46,7 +46,7 @@ impl ServerCertVerifier for NoVerifier {
         Ok(HandshakeSignatureValid::assertion())
     }
 
-    fn verify_tls13_sig(
+    fn verify_tls13_signature(
         &self,
         _message: &[u8],
         _cert: &CertificateDer<'_>,
@@ -99,7 +99,8 @@ fn send_and_receive_packet(
 ) -> Result<Duration, std::io::Error> {
     // Connessione TCP
     let tcp = TcpStream::connect(server_address)?;
-    set_tcp_quickack(&tcp, false);
+    tcp.set_nodelay(true).ok();
+    set_tcp_quickack(&tcp, true);
 
     // Wrap TLS
     let conn = rustls::ClientConnection::new(tls_config, server_name)

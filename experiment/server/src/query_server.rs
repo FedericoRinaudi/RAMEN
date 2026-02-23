@@ -32,7 +32,7 @@ fn handle_client(stream: TcpStream, tls_config: Arc<rustls::ServerConfig>) {
 
     // Opzioni socket sul raw TcpStream prima del wrapping TLS
     stream.set_nodelay(true).ok();
-    set_tcp_quickack(&stream, false);
+    set_tcp_quickack(&stream, true);
 
     let conn = match rustls::ServerConnection::new(tls_config) {
         Ok(c) => c,

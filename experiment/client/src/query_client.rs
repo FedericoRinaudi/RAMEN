@@ -36,7 +36,7 @@ impl ServerCertVerifier for NoVerifier {
         Ok(ServerCertVerified::assertion())
     }
 
-    fn verify_tls12_sig(
+    fn verify_tls12_signature(
         &self,
         _message: &[u8],
         _cert: &CertificateDer<'_>,
@@ -45,7 +45,7 @@ impl ServerCertVerifier for NoVerifier {
         Ok(HandshakeSignatureValid::assertion())
     }
 
-    fn verify_tls13_sig(
+    fn verify_tls13_signature(
         &self,
         _message: &[u8],
         _cert: &CertificateDer<'_>,
@@ -140,7 +140,8 @@ fn main() {
         };
 
         // Opzioni socket sul raw TcpStream (prima del wrapping TLS)
-        set_tcp_quickack(&tcp, false);
+        tcp.set_nodelay(true).ok();
+        set_tcp_quickack(&tcp, true);
 
         // Wrap TLS
         let conn = match rustls::ClientConnection::new(Arc::clone(&tls_config), server_name.clone()) {

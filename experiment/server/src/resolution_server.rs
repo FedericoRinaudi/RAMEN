@@ -33,7 +33,7 @@ async fn handle_client(tcp_stream: TcpStream, acceptor: TlsAcceptor) {
 
     // Opzioni socket sul raw TcpStream prima del wrapping TLS
     tcp_stream.set_nodelay(true).ok();
-    set_tcp_quickack(&tcp_stream, false);
+    set_tcp_quickack(&tcp_stream, true);
 
     let mut tls_stream = match acceptor.accept(tcp_stream).await {
         Ok(s) => s,
