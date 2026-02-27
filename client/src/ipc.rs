@@ -37,9 +37,12 @@ pub struct ServerInfo {
     pub duration_seconds: u64,
     pub inserted_at: String,
     pub expires_at: String,
-    pub padding_probability: u8,
-    pub dummy_probability: u8,
-    pub fragmentation_probability: u8,
+    pub padding_prob_min: u8,
+    pub padding_prob_max: u8,
+    pub dummy_prob_min: u8,
+    pub dummy_prob_max: u8,
+    pub frag_prob_min: u8,
+    pub frag_prob_max: u8,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

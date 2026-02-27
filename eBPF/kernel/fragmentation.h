@@ -86,7 +86,7 @@ static __always_inline __u8 fragment_packet_internal(struct __sk_buff *skb) {
     }
     
     // Check if we should fragment
-    if ((bpf_get_prandom_u32() % 100) > config->fragmentation_probability) {
+    if ((bpf_get_prandom_u32() % 100) > config->frag_probability) {
         debug_print("[FRAGMENT] Skip: probability check (payload=%u bytes)", payload_len);
         return 1; // No fragmentation for small payloads
     }

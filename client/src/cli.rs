@@ -44,7 +44,7 @@ fn print_usage() {
     println!("  wfsafe-client                                           - Avvia il daemon (config: /etc/wfsafe/config.yaml)");
     println!("  wfsafe-client list                                      - Elenca i server configurati");
     println!("  wfsafe-client status                                    - Mostra lo stato del daemon");
-    println!("  wfsafe-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [padding%] [dummy%] [frag%]");
+    println!("  wfsafe-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
     println!("                                                          - Aggiungi un nuovo server");
     println!("  wfsafe-client update <name> <campo> <valore>            - Aggiorna un campo del server");
     println!("  wfsafe-client renew <name>                              - Rigenera le chiavi per un server");
@@ -54,7 +54,9 @@ fn print_usage() {
     println!();
     println!("Campi aggiornabili:");
     println!("  server_ip, http_port, service_port, endpoint, duration_seconds,");
-    println!("  padding_probability, dummy_probability, fragmentation_probability");
+    println!("  server_ip, http_port, service_port, endpoint, duration_seconds,
+  padding_prob_min, padding_prob_max, dummy_prob_min, dummy_prob_max,
+  frag_prob_min, frag_prob_max");
 }
 
 async fn handle_status() -> Result<(), Box<dyn std::error::Error>> {
@@ -107,10 +109,9 @@ async fn handle_list() -> Result<(), Box<dyn std::error::Error>> {
                 println!("   Service Port: {}", server.service_port);
                 println!("   Endpoint: {}", server.endpoint);
                 println!("   Duration: {}s", server.duration_seconds);
-                println!("   Probabilità: padding={}%, dummy={}%, frag={}%", 
-                         server.padding_probability, 
-                         server.dummy_probability, 
-                         server.fragmentation_probability);
+                println!("   Padding:  {}%–{}%", server.padding_prob_min, server.padding_prob_max);
+                println!("   Dummy:    {}%–{}%", server.dummy_prob_min, server.dummy_prob_max);
+                println!("   Frag:     {}%–{}%", server.frag_prob_min, server.frag_prob_max);
                 println!("   Ultimo invio: {} (scade: {})", server.inserted_at, server.expires_at);
                 println!();
             }
@@ -124,7 +125,7 @@ async fn handle_list() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 4 {
-        println!("Uso: wfsafe-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [padding%] [dummy%] [frag%]");
+        println!("Uso: wfsafe-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
         return Err("Argomenti insufficienti".into());
     }
     
@@ -134,10 +135,13 @@ async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let service_port: u16 = args[3].parse()?;
     let duration_seconds: u64 = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(86400);
     let endpoint = args.get(5).map(|s| s.clone()).unwrap_or_else(|| "/config".to_string());
-    let padding_probability: u8 = args.get(6).and_then(|s| s.parse().ok()).unwrap_or(70);
-    let dummy_probability: u8 = args.get(7).and_then(|s| s.parse().ok()).unwrap_or(70);
-    let fragmentation_probability: u8 = args.get(8).and_then(|s| s.parse().ok()).unwrap_or(70);
-    
+    let padding_prob_min: u8 = args.get(6).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let padding_prob_max: u8 = args.get(7).and_then(|s| s.parse().ok()).unwrap_or(100);
+    let dummy_prob_min: u8 = args.get(8).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let dummy_prob_max: u8 = args.get(9).and_then(|s| s.parse().ok()).unwrap_or(100);
+    let frag_prob_min: u8 = args.get(10).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let frag_prob_max: u8 = args.get(11).and_then(|s| s.parse().ok()).unwrap_or(100);
+
     let new_server = ServerConfig {
         name: name.clone(),
         server_ip,
@@ -146,9 +150,12 @@ async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         endpoint,
         last_sent_at: Utc::now(),
         duration_seconds,
-        padding_probability,
-        dummy_probability,
-        fragmentation_probability,
+        padding_prob_min,
+        padding_prob_max,
+        dummy_prob_min,
+        dummy_prob_max,
+        frag_prob_min,
+        frag_prob_max,
     };
     
     println!("Aggiunta del server '{}'...", name);
