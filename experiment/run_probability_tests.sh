@@ -24,8 +24,8 @@ RESOLUTION_CLIENT_BIN="/home/ubuntu/WFSafeBPF/experiment/client/target/release/r
 RESULTS_DIR="/home/ubuntu/WFSafeBPF/results"
 
 # ── Parametri esperimento ─────────────────────────────────────────────────────
-N_REQUESTS=50      # richieste per ogni run (loop gestito qui)
-ROUNDS=100         # round per ogni combinazione
+N_REQUESTS=10      # richieste per ogni run (loop gestito qui)
+ROUNDS=500         # round per ogni combinazione
 TARGET=$((N_REQUESTS * ROUNDS))   # entries target per ogni file CSV
 
 # ── Indirizzi server ──────────────────────────────────────────────────────────
@@ -88,6 +88,7 @@ update_fixed() {
     local padding=$1 dummy=$2 frag=$3
     sudo "$CLIENT_PATH" update-probs "server_query" "$padding" "$padding" "$dummy" "$dummy" "$frag" "$frag" > /dev/null 2>&1
     sudo "$CLIENT_PATH" update-probs "server_res"   "$padding" "$padding" "$dummy" "$dummy" "$frag" "$frag" > /dev/null 2>&1
+    sleep 0.001
 }
 
 # Imposta min=max=prob_casuale su UN singolo server (modalità max, per ogni request)
@@ -98,6 +99,7 @@ update_random_for_server() {
     d=$(rand_in "$d_max")
     f=$(rand_in "$f_max")
     sudo "$CLIENT_PATH" update-probs "$server" "$p" "$p" "$d" "$d" "$f" "$f" > /dev/null 2>&1
+    sleep 0.001
 }
 
 # Conta le entries in un CSV (esclude header). Restituisce 0 se il file non esiste.
@@ -118,13 +120,13 @@ run_requests_fixed() {
     done
 }
 
-# Esegue N_REQUESTS request in modalità max: sceglie una prob casuale per ogni
-# request e la passa al server (min=max=casuale).
+# Esegue N_REQUESTS request in modalità max: sceglie una prob casuale UNA VOLTA
+# per batch e la imposta prima del loop (min=max=casuale).
 # $1=bin $2=server_addr $3=rtt_file $4=server_name $5=p_max $6=d_max $7=f_max
 run_requests_max() {
     local bin=$1 addr=$2 rtt_file=$3 server_name=$4 p_max=$5 d_max=$6 f_max=$7
+    update_random_for_server "$server_name" "$p_max" "$d_max" "$f_max"
     for req in $(seq 1 "$N_REQUESTS"); do
-        update_random_for_server "$server_name" "$p_max" "$d_max" "$f_max"
         timeout 60 "$bin" "$rtt_file" "$addr" 1 $HTTP_FLAG > /dev/null 2>&1 || true
     done
 }
@@ -139,8 +141,8 @@ run_n_requests_fixed() {
 
 run_n_requests_max() {
     local bin=$1 addr=$2 rtt_file=$3 server_name=$4 p_max=$5 d_max=$6 f_max=$7 n=$8
+    update_random_for_server "$server_name" "$p_max" "$d_max" "$f_max"
     for req in $(seq 1 "$n"); do
-        update_random_for_server "$server_name" "$p_max" "$d_max" "$f_max"
         timeout 60 "$bin" "$rtt_file" "$addr" 1 $HTTP_FLAG > /dev/null 2>&1 || true
     done
 }
@@ -175,7 +177,7 @@ run_test() {
         run_requests_fixed "$RESOLUTION_CLIENT_BIN" "$RESOLUTION_SERVER" "$R_FILE"
         echo "  ✓ Resolution completato"
     else
-        echo "  → [max] prob casuale [0-P] per ogni query/resolution (upper_bound: Pp=${padding}% Pd=${dummy}% Pf=${frag}%)"
+        echo "  → [max] prob casuale [0-P] estratta una volta per batch (upper_bound: Pp=${padding}% Pd=${dummy}% Pf=${frag}%)"
 
         echo "  → [Query] $N_REQUESTS request su $QUERY_SERVER"
         run_requests_max "$QUERY_CLIENT_BIN" "$QUERY_SERVER" "$Q_FILE" \
