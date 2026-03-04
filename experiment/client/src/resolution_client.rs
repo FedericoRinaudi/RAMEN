@@ -13,11 +13,16 @@ use rustls::{DigitallySignedStruct, Error as TlsError, SignatureScheme};
 
 const DEFAULT_SERVER_ADDRESS: &str = "10.10.0.2:8081";
 // TLS 1.3 overhead per record: 5 (header) + 1 (inner content type) + 16 (AEAD tag) = 22 bytes
-// Wire invariant:
-//   send:    68 payload + 22 TLS + 54 net headers = 144 bytes  (was: 90 + 54)
-//   receive: 189 payload + 22 TLS + 54 net headers = 265 bytes (was: 211 + 54)
-const BYTES_TO_SEND: usize = 68;
-const BYTES_TO_RECEIVE: usize = 189;
+// Wire invariant (TLS):
+//   send:    68 payload + 22 TLS + 54 net headers = 144 bytes wire
+//   receive: 189 payload + 22 TLS + 54 net headers = 265 bytes wire
+// Wire invariant (plain TCP, stessa dimensione wire):
+//   send:    90 payload + 54 net headers = 144 bytes wire  (90 = 68 + 22)
+//   receive: 211 payload + 54 net headers = 265 bytes wire (211 = 189 + 22)
+const BYTES_TO_SEND_TLS: usize = 68;
+const BYTES_TO_RECEIVE_TLS: usize = 189;
+const BYTES_TO_SEND_PLAIN: usize = 90;   // 68 + 22 TLS overhead
+const BYTES_TO_RECEIVE_PLAIN: usize = 211; // 189 + 22 TLS overhead
 const N_REQUESTS: usize = 100;
 const N_PARALLEL_PACKETS: usize = 20;
 
@@ -90,61 +95,74 @@ fn set_tcp_quickack(stream: &TcpStream, enable: bool) {
     }
 }
 
-// Funzione che invia un singolo pacchetto e riceve la risposta via TLS
-// Restituisce il tempo impiegato per il data transfer (senza handshake TCP+TLS)
+// Invia un singolo pacchetto e riceve la risposta.
+// In TLS mode: tls_config e server_name sono Some; il timer parte dopo l'handshake.
+// In plain TCP mode: entrambi None; payload aumentato per mantenere la stessa dimensione wire.
 fn send_and_receive_packet(
     server_address: &str,
-    tls_config: Arc<rustls::ClientConfig>,
-    server_name: ServerName<'static>,
+    tls_config: Option<Arc<rustls::ClientConfig>>,
+    server_name: Option<ServerName<'static>>,
 ) -> Result<Duration, std::io::Error> {
-    // Connessione TCP
     let tcp = TcpStream::connect(server_address)?;
     tcp.set_nodelay(true).ok();
     set_tcp_quickack(&tcp, true);
 
-    // Wrap TLS
-    let conn = rustls::ClientConnection::new(tls_config, server_name)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-    let mut tls = rustls::StreamOwned::new(conn, tcp);
+    match (tls_config, server_name) {
+        (Some(config), Some(name)) => {
+            // ── TLS path ──────────────────────────────────────────────────
+            let conn = rustls::ClientConnection::new(config, name)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            let mut tls = rustls::StreamOwned::new(conn, tcp);
 
-    // Completa handshake TLS prima di iniziare la misurazione
-    loop {
-        tls.conn.complete_io(&mut tls.sock)?;
-        if !tls.conn.is_handshaking() { break; }
+            loop {
+                tls.conn.complete_io(&mut tls.sock)?;
+                if !tls.conn.is_handshaking() { break; }
+            }
+
+            let data = vec![0u8; BYTES_TO_SEND_TLS];
+            let start = Instant::now();
+            tls.write_all(&data)?;
+            let mut response = vec![0u8; BYTES_TO_RECEIVE_TLS];
+            tls.read_exact(&mut response)?;
+            let duration = start.elapsed();
+
+            tls.conn.send_close_notify();
+            let _ = tls.flush();
+            let _ = tls.sock.shutdown(Shutdown::Write);
+            let mut buf = [0u8; 1];
+            let _ = tls.read(&mut buf);
+
+            Ok(duration)
+        }
+        _ => {
+            // ── Plain TCP path (payload aumentato per parificare la dimensione wire) ──
+            let mut stream = tcp;
+            let data = vec![0u8; BYTES_TO_SEND_PLAIN];
+            let start = Instant::now();
+            stream.write_all(&data)?;
+            let mut response = vec![0u8; BYTES_TO_RECEIVE_PLAIN];
+            stream.read_exact(&mut response)?;
+            let duration = start.elapsed();
+
+            let _ = stream.shutdown(Shutdown::Write);
+            let mut buf = [0u8; 1];
+            let _ = stream.read(&mut buf);
+
+            Ok(duration)
+        }
     }
-
-    let data = vec![0u8; BYTES_TO_SEND];
-
-    // Inizia misurazione dopo TCP + TLS handshake
-    let start = Instant::now();
-
-    tls.write_all(&data)?;
-
-    let mut response = vec![0u8; BYTES_TO_RECEIVE];
-    tls.read_exact(&mut response)?;
-
-    let duration = start.elapsed();
-
-    // Chiusura: TLS close_notify + TCP FIN
-    tls.conn.send_close_notify();
-    let _ = tls.flush();
-    let _ = tls.sock.shutdown(Shutdown::Write);
-    let mut buf = [0u8; 1];
-    let _ = tls.read(&mut buf);
-
-    Ok(duration)
 }
 
 #[tokio::main]
 async fn main() {
     rustls::crypto::ring::default_provider().install_default().ok();
 
-    // Uso: <output_file> [server_address] [n_requests]
+    // Uso: <output_file> [server_address] [n_requests] [--http]
     let args: Vec<String> = env::args().collect();
     let output_file = if args.len() > 1 {
         args[1].clone()
     } else {
-        eprintln!("Uso: {} <output_file> [server_address] [n_requests]", args[0]);
+        eprintln!("Uso: {} <output_file> [server_address] [n_requests] [--http]", args[0]);
         std::process::exit(1);
     };
 
@@ -154,10 +172,19 @@ async fn main() {
         DEFAULT_SERVER_ADDRESS.to_string()
     };
 
-    println!("Connessione TLS a {}", server_address);
-    println!("Configurazione:");
-    println!("  - Bytes da inviare: {} (+ 22 TLS + 54 net = 144 wire)", BYTES_TO_SEND);
-    println!("  - Bytes da ricevere: {} (+ 22 TLS + 54 net = 265 wire)", BYTES_TO_RECEIVE);
+    let use_tls = !args.iter().any(|a| a == "--http");
+
+    if use_tls {
+        println!("Connessione TLS a {}", server_address);
+        println!("Configurazione:");
+        println!("  - Bytes da inviare: {} (+ 22 TLS + 54 net = 144 wire)", BYTES_TO_SEND_TLS);
+        println!("  - Bytes da ricevere: {} (+ 22 TLS + 54 net = 265 wire)", BYTES_TO_RECEIVE_TLS);
+    } else {
+        println!("Connessione TCP (plain) a {}", server_address);
+        println!("Configurazione:");
+        println!("  - Bytes da inviare: {} (+ 54 net = 144 wire, stessa dimensione TLS)", BYTES_TO_SEND_PLAIN);
+        println!("  - Bytes da ricevere: {} (+ 54 net = 265 wire, stessa dimensione TLS)", BYTES_TO_RECEIVE_PLAIN);
+    }
 
     let n_requests = if args.len() > 3 {
         args[3].parse::<usize>().unwrap_or(N_REQUESTS)
@@ -168,24 +195,29 @@ async fn main() {
     };
 
     println!("  - Numero totale richieste: {}", n_requests);
-    println!("  - Nuova connessione TLS per ogni richiesta");
+    println!("  - Nuova connessione per ogni richiesta");
     println!("  - Output file: {}", output_file);
     println!();
 
-    let tls_config = Arc::new(make_client_config());
-    let server_name = ServerName::try_from("experiment.server")
-        .expect("Invalid server name")
-        .to_owned();
+    let tls_config: Option<Arc<rustls::ClientConfig>> = if use_tls {
+        Some(Arc::new(make_client_config()))
+    } else {
+        None
+    };
+    let server_name: Option<ServerName<'static>> = if use_tls {
+        Some(ServerName::try_from("experiment.server").expect("Invalid server name").to_owned())
+    } else {
+        None
+    };
 
     let mut rtts = Vec::with_capacity(n_requests);
 
     for i in 0..n_requests {
-        // Crea N_PARALLEL_PACKETS task paralleli
         let mut tasks = Vec::new();
 
         for _j in 0..N_PARALLEL_PACKETS {
             let addr = server_address.clone();
-            let config = Arc::clone(&tls_config);
+            let config = tls_config.clone();
             let name = server_name.clone();
             let task = task::spawn_blocking(move || {
                 send_and_receive_packet(&addr, config, name)
@@ -193,7 +225,6 @@ async fn main() {
             tasks.push(task);
         }
 
-        // Aspetta che tutti i task completino e raccogli i tempi
         let mut all_ok = true;
         let mut durations = Vec::new();
 
