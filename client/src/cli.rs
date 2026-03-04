@@ -13,6 +13,7 @@ pub async fn send_command_to_daemon(args: Vec<String>) -> Result<(), Box<dyn std
     match command.as_str() {
         "add" => handle_add(&args[2..]).await,
         "update" => handle_update(&args[2..]).await,
+        "update-probs" => handle_update_probs(&args[2..]).await,
         "renew" => handle_renew(&args[2..]).await,
         "list" => handle_list().await,
         "status" => handle_status().await,
@@ -47,6 +48,8 @@ fn print_usage() {
     println!("  wfsafe-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
     println!("                                                          - Aggiungi un nuovo server");
     println!("  wfsafe-client update <name> <campo> <valore>            - Aggiorna un campo del server");
+    println!("  wfsafe-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
+    println!("                                                          - Aggiorna tutte le probabilità in una sola chiamata");
     println!("  wfsafe-client renew <name>                              - Rigenera le chiavi per un server");
     println!("  wfsafe-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
     println!("                                                          - Modifica parametri di cleanup delle mappe");
@@ -168,6 +171,36 @@ async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         _ => eprintln!("Risposta inattesa dal daemon"),
     }
     
+    Ok(())
+}
+
+async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    if args.len() < 7 {
+        println!("Uso: wfsafe-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
+        return Err("Argomenti insufficienti".into());
+    }
+
+    let name                = args[0].clone();
+    let padding_prob_min: u8 = args[1].parse()?;
+    let padding_prob_max: u8 = args[2].parse()?;
+    let dummy_prob_min: u8   = args[3].parse()?;
+    let dummy_prob_max: u8   = args[4].parse()?;
+    let frag_prob_min: u8    = args[5].parse()?;
+    let frag_prob_max: u8    = args[6].parse()?;
+
+    let response = send_command(crate::ipc::DaemonCommand::UpdateProbs {
+        name,
+        padding_prob_min, padding_prob_max,
+        dummy_prob_min, dummy_prob_max,
+        frag_prob_min, frag_prob_max,
+    }).await?;
+
+    match response {
+        crate::ipc::DaemonResponse::Success(msg) => println!("✓ {}", msg),
+        crate::ipc::DaemonResponse::Error(e) => eprintln!("✗ Errore: {}", e),
+        _ => eprintln!("Risposta inattesa dal daemon"),
+    }
+
     Ok(())
 }
 

@@ -212,6 +212,60 @@ pub async fn handle_update_command(
     DaemonResponse::Success(format!("Campo '{}' aggiornato per il server '{}'", field, name))
 }
 
+/// Handler per il comando UpdateProbs (aggiorna tutti e 6 i campi probabilità in una sola chiamata)
+pub async fn handle_update_probs_command(
+    config_path: &str,
+    name: String,
+    padding_prob_min: u8,
+    padding_prob_max: u8,
+    dummy_prob_min: u8,
+    dummy_prob_max: u8,
+    frag_prob_min: u8,
+    frag_prob_max: u8,
+    bpf_loader: &Arc<Mutex<BpfLoader>>,
+) -> DaemonResponse {
+    let mut config = match ClientConfig::from_file(config_path) {
+        Ok(c) => c,
+        Err(e) => return DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+    };
+
+    let server = match config.servers.iter_mut().find(|s| s.name == name) {
+        Some(s) => s,
+        None => return DaemonResponse::Error(format!("Server '{}' non trovato", name)),
+    };
+
+    server.padding_prob_min = padding_prob_min;
+    server.padding_prob_max = padding_prob_max;
+    server.dummy_prob_min   = dummy_prob_min;
+    server.dummy_prob_max   = dummy_prob_max;
+    server.frag_prob_min    = frag_prob_min;
+    server.frag_prob_max    = frag_prob_max;
+
+    let (padding_key, dummy_key) = ServerConfig::generate_keys();
+    let (padding_key_hex, dummy_key_hex) = (hex::encode(&padding_key), hex::encode(&dummy_key));
+
+    let http_client = HttpClient::new();
+    if let Err(e) = http_client.send_config_with_keys(server, &padding_key_hex, &dummy_key_hex).await {
+        return DaemonResponse::Error(format!("Errore nell'invio al server: {}", e));
+    }
+
+    if let Ok(mut loader) = bpf_loader.lock() {
+        if let Err(e) = load_config_to_ebpf(&mut loader, server, &padding_key, &dummy_key) {
+            return DaemonResponse::Error(e);
+        }
+    } else {
+        return DaemonResponse::Error("Errore nel lock del loader eBPF".to_string());
+    }
+
+    server.update_last_sent();
+
+    if let Err(e) = config.save_to_file(config_path) {
+        return DaemonResponse::Error(format!("Errore nel salvataggio della configurazione: {}", e));
+    }
+
+    DaemonResponse::Success(format!("Probabilità aggiornate per il server '{}'", name))
+}
+
 /// Handler per il comando Renew
 pub async fn handle_renew_command(
     config_path: &str,
@@ -338,6 +392,18 @@ pub async fn handle_command(
         DaemonCommand::Add(server) => handle_add_command(config_path, server, bpf_loader).await,
         DaemonCommand::Update { name, field, value } => {
             handle_update_command(config_path, name, field, value, bpf_loader).await
+        }
+        DaemonCommand::UpdateProbs {
+            name, padding_prob_min, padding_prob_max,
+            dummy_prob_min, dummy_prob_max, frag_prob_min, frag_prob_max
+        } => {
+            handle_update_probs_command(
+                config_path, name,
+                padding_prob_min, padding_prob_max,
+                dummy_prob_min, dummy_prob_max,
+                frag_prob_min, frag_prob_max,
+                bpf_loader,
+            ).await
         }
         DaemonCommand::Renew { name } => handle_renew_command(config_path, name, bpf_loader).await,
         DaemonCommand::Status => handle_status_command(config_path, uptime_seconds).await,

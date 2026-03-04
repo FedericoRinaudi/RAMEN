@@ -86,14 +86,8 @@ rand_in() {
 # Imposta min=max=valore per entrambi i server (modalità fixed)
 update_fixed() {
     local padding=$1 dummy=$2 frag=$3
-    for server in server_query server_res; do
-        sudo "$CLIENT_PATH" update "$server" "padding_prob_min" "$padding" > /dev/null 2>&1
-        sudo "$CLIENT_PATH" update "$server" "padding_prob_max" "$padding" > /dev/null 2>&1
-        sudo "$CLIENT_PATH" update "$server" "dummy_prob_min"   "$dummy"   > /dev/null 2>&1
-        sudo "$CLIENT_PATH" update "$server" "dummy_prob_max"   "$dummy"   > /dev/null 2>&1
-        sudo "$CLIENT_PATH" update "$server" "frag_prob_min"    "$frag"    > /dev/null 2>&1
-        sudo "$CLIENT_PATH" update "$server" "frag_prob_max"    "$frag"    > /dev/null 2>&1
-    done
+    sudo "$CLIENT_PATH" update-probs "server_query" "$padding" "$padding" "$dummy" "$dummy" "$frag" "$frag" > /dev/null 2>&1
+    sudo "$CLIENT_PATH" update-probs "server_res"   "$padding" "$padding" "$dummy" "$dummy" "$frag" "$frag" > /dev/null 2>&1
 }
 
 # Imposta min=max=prob_casuale su UN singolo server (modalità max, per ogni request)
@@ -103,12 +97,7 @@ update_random_for_server() {
     p=$(rand_in "$p_max")
     d=$(rand_in "$d_max")
     f=$(rand_in "$f_max")
-    sudo "$CLIENT_PATH" update "$server" "padding_prob_min" "$p" > /dev/null 2>&1
-    sudo "$CLIENT_PATH" update "$server" "padding_prob_max" "$p" > /dev/null 2>&1
-    sudo "$CLIENT_PATH" update "$server" "dummy_prob_min"   "$d" > /dev/null 2>&1
-    sudo "$CLIENT_PATH" update "$server" "dummy_prob_max"   "$d" > /dev/null 2>&1
-    sudo "$CLIENT_PATH" update "$server" "frag_prob_min"    "$f" > /dev/null 2>&1
-    sudo "$CLIENT_PATH" update "$server" "frag_prob_max"    "$f" > /dev/null 2>&1
+    sudo "$CLIENT_PATH" update-probs "$server" "$p" "$p" "$d" "$d" "$f" "$f" > /dev/null 2>&1
 }
 
 # Conta le entries in un CSV (esclude header). Restituisce 0 se il file non esiste.
