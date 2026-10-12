@@ -242,11 +242,6 @@ static __always_inline __u8 manage_ack(struct __sk_buff *skb, void* ack_map, voi
         offload_cleanup_to_user_space(fin_cleanup_queue, &reversed_flow, translation->translated_seq);
     }
 
-    //if(input_ack_num == translation->translated_seq) {
-    //    debug_print("[SEQ_TRANS] No change in ack_num: %u", input_ack_num);
-    //    return 1;
-    //}
-
     debug_print("[SEQ_TRANS] Translating ack_num: %u -> %u", input_ack_num, translation->translated_seq);
    // Replace ack_num in packet
     if (replace_ack_num(skb, ip_header_len, translation->translated_seq) < 0) {
