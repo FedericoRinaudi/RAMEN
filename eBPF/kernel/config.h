@@ -27,4 +27,7 @@
 #define PROBABILITY_OF_PADDING 70
 #define PROBABILITY_OF_DUMMY 70
 
+/* Interval (nanoseconds) between per-client probability refreshes */
+#define PROB_REFRESH_INTERVAL_NS 3000000000ULL
+
 #endif // __CONFIG_H

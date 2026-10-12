@@ -25,21 +25,37 @@ pub struct ServerConfig {
     /// Durata delle chiavi in secondi
     pub duration_seconds: u64,
     
-    /// Probabilità padding (0-100)
-    #[serde(default = "default_probability")]
-    pub padding_probability: u8,
-    
-    /// Probabilità dummy (0-100)
-    #[serde(default = "default_probability")]
-    pub dummy_probability: u8,
-    
-    /// Probabilità frammentazione (0-100)
-    #[serde(default = "default_probability")]
-    pub fragmentation_probability: u8,
+    /// Probabilità minima padding (0-100)
+    #[serde(default = "default_prob_min")]
+    pub padding_prob_min: u8,
+
+    /// Probabilità massima padding (0-100)
+    #[serde(default = "default_prob_max")]
+    pub padding_prob_max: u8,
+
+    /// Probabilità minima dummy (0-100)
+    #[serde(default = "default_prob_min")]
+    pub dummy_prob_min: u8,
+
+    /// Probabilità massima dummy (0-100)
+    #[serde(default = "default_prob_max")]
+    pub dummy_prob_max: u8,
+
+    /// Probabilità minima frammentazione (0-100)
+    #[serde(default = "default_prob_min")]
+    pub frag_prob_min: u8,
+
+    /// Probabilità massima frammentazione (0-100)
+    #[serde(default = "default_prob_max")]
+    pub frag_prob_max: u8,
 }
 
-fn default_probability() -> u8 {
-    70
+fn default_prob_min() -> u8 {
+    0
+}
+
+fn default_prob_max() -> u8 {
+    100
 }
 
 impl ServerConfig {

@@ -7,9 +7,12 @@ translation_cleanup_interval_seconds = 5
 cpu_threshold = 5.0
 timestamp_threshold_seconds = 60  
 force_cleanup_every = 20
-default_padding_probability = 30
-default_dummy_probability = 30
-default_fragmentation_probability = 30
+default_padding_prob_min = 0
+default_padding_prob_max = 100
+default_dummy_prob_min = 0
+default_dummy_prob_max = 100
+default_frag_prob_min = 0
+default_frag_prob_max = 100
 
 # Configurazione TLS
 [default.tls]

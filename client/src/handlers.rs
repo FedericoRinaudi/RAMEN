@@ -28,11 +28,14 @@ fn load_config_to_ebpf(
         duration,
         client_ip,
         server.service_port,
-        server.padding_probability,
-        server.dummy_probability,
-        server.fragmentation_probability,
+        server.padding_prob_min,
+        server.padding_prob_max,
+        server.dummy_prob_min,
+        server.dummy_prob_max,
+        server.frag_prob_min,
+        server.frag_prob_max,
     );
-    
+
     loader.load_config(&bpf_config)
         .map_err(|e| format!("Errore nel caricamento in eBPF: {}", e))
 }
@@ -52,9 +55,12 @@ pub async fn handle_list_command(config_path: &str) -> DaemonResponse {
                     duration_seconds: s.duration_seconds,
                     inserted_at: s.last_sent_at.to_rfc3339(),
                     expires_at: expiration.to_rfc3339(),
-                    padding_probability: s.padding_probability,
-                    dummy_probability: s.dummy_probability,
-                    fragmentation_probability: s.fragmentation_probability,
+                    padding_prob_min: s.padding_prob_min,
+                    padding_prob_max: s.padding_prob_max,
+                    dummy_prob_min: s.dummy_prob_min,
+                    dummy_prob_max: s.dummy_prob_max,
+                    frag_prob_min: s.frag_prob_min,
+                    frag_prob_max: s.frag_prob_max,
                 }
             }).collect();
             
@@ -111,9 +117,12 @@ pub async fn handle_add_command(
             duration,
             client_ip,
             server.service_port,
-            server.padding_probability,
-            server.dummy_probability,
-            server.fragmentation_probability,
+            server.padding_prob_min,
+            server.padding_prob_max,
+            server.dummy_prob_min,
+            server.dummy_prob_max,
+            server.frag_prob_min,
+            server.frag_prob_max,
         );
         
         if let Err(e) = loader.load_config(&bpf_config) {
@@ -160,9 +169,12 @@ pub async fn handle_update_command(
         "service_port" => value.parse().map(|v| server.service_port = v).map_err(|e| format!("{}", e)),
         "endpoint" => { server.endpoint = value; Ok(()) }
         "duration_seconds" => value.parse().map(|v| server.duration_seconds = v).map_err(|e| format!("{}", e)),
-        "padding_probability" => value.parse().map(|v| server.padding_probability = v).map_err(|e| format!("{}", e)),
-        "dummy_probability" => value.parse().map(|v| server.dummy_probability = v).map_err(|e| format!("{}", e)),
-        "fragmentation_probability" => value.parse().map(|v| server.fragmentation_probability = v).map_err(|e| format!("{}", e)),
+        "padding_prob_min" => value.parse().map(|v| server.padding_prob_min = v).map_err(|e| format!("{}", e)),
+        "padding_prob_max" => value.parse().map(|v| server.padding_prob_max = v).map_err(|e| format!("{}", e)),
+        "dummy_prob_min"   => value.parse().map(|v| server.dummy_prob_min = v).map_err(|e| format!("{}", e)),
+        "dummy_prob_max"   => value.parse().map(|v| server.dummy_prob_max = v).map_err(|e| format!("{}", e)),
+        "frag_prob_min"    => value.parse().map(|v| server.frag_prob_min = v).map_err(|e| format!("{}", e)),
+        "frag_prob_max"    => value.parse().map(|v| server.frag_prob_max = v).map_err(|e| format!("{}", e)),
         _ => Err(format!("Campo '{}' non valido", field)),
     };
     
@@ -198,6 +210,60 @@ pub async fn handle_update_command(
     }
     
     DaemonResponse::Success(format!("Campo '{}' aggiornato per il server '{}'", field, name))
+}
+
+/// Handler per il comando UpdateProbs (aggiorna tutti e 6 i campi probabilità in una sola chiamata)
+pub async fn handle_update_probs_command(
+    config_path: &str,
+    name: String,
+    padding_prob_min: u8,
+    padding_prob_max: u8,
+    dummy_prob_min: u8,
+    dummy_prob_max: u8,
+    frag_prob_min: u8,
+    frag_prob_max: u8,
+    bpf_loader: &Arc<Mutex<BpfLoader>>,
+) -> DaemonResponse {
+    let mut config = match ClientConfig::from_file(config_path) {
+        Ok(c) => c,
+        Err(e) => return DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+    };
+
+    let server = match config.servers.iter_mut().find(|s| s.name == name) {
+        Some(s) => s,
+        None => return DaemonResponse::Error(format!("Server '{}' non trovato", name)),
+    };
+
+    server.padding_prob_min = padding_prob_min;
+    server.padding_prob_max = padding_prob_max;
+    server.dummy_prob_min   = dummy_prob_min;
+    server.dummy_prob_max   = dummy_prob_max;
+    server.frag_prob_min    = frag_prob_min;
+    server.frag_prob_max    = frag_prob_max;
+
+    let (padding_key, dummy_key) = ServerConfig::generate_keys();
+    let (padding_key_hex, dummy_key_hex) = (hex::encode(&padding_key), hex::encode(&dummy_key));
+
+    let http_client = HttpClient::new();
+    if let Err(e) = http_client.send_config_with_keys(server, &padding_key_hex, &dummy_key_hex).await {
+        return DaemonResponse::Error(format!("Errore nell'invio al server: {}", e));
+    }
+
+    if let Ok(mut loader) = bpf_loader.lock() {
+        if let Err(e) = load_config_to_ebpf(&mut loader, server, &padding_key, &dummy_key) {
+            return DaemonResponse::Error(e);
+        }
+    } else {
+        return DaemonResponse::Error("Errore nel lock del loader eBPF".to_string());
+    }
+
+    server.update_last_sent();
+
+    if let Err(e) = config.save_to_file(config_path) {
+        return DaemonResponse::Error(format!("Errore nel salvataggio della configurazione: {}", e));
+    }
+
+    DaemonResponse::Success(format!("Probabilità aggiornate per il server '{}'", name))
 }
 
 /// Handler per il comando Renew
@@ -326,6 +392,18 @@ pub async fn handle_command(
         DaemonCommand::Add(server) => handle_add_command(config_path, server, bpf_loader).await,
         DaemonCommand::Update { name, field, value } => {
             handle_update_command(config_path, name, field, value, bpf_loader).await
+        }
+        DaemonCommand::UpdateProbs {
+            name, padding_prob_min, padding_prob_max,
+            dummy_prob_min, dummy_prob_max, frag_prob_min, frag_prob_max
+        } => {
+            handle_update_probs_command(
+                config_path, name,
+                padding_prob_min, padding_prob_max,
+                dummy_prob_min, dummy_prob_max,
+                frag_prob_min, frag_prob_max,
+                bpf_loader,
+            ).await
         }
         DaemonCommand::Renew { name } => handle_renew_command(config_path, name, bpf_loader).await,
         DaemonCommand::Status => handle_status_command(config_path, uptime_seconds).await,

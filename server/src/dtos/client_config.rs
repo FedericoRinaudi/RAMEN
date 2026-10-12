@@ -8,37 +8,43 @@ pub struct ClientConfig {
     pub dummy_key: String,        // 64 caratteri esadecimali (32 byte)
     pub duration_seconds: u64,    // Durata validità configurazione in secondi
     pub server_port: u16,         // Porta del server
-    pub padding_probability: Option<u8>,  // Probabilità (0-100) di applicare padding
-    pub dummy_probability: Option<u8>,    // Probabilità (0-100) di inserire dummy packets
-    pub fragmentation_probability: Option<u8>,  // Probabilità (0-100) di frammentare pacchetti
+    pub padding_prob_min: Option<u8>,  // Probabilità minima (0-100) di applicare padding
+    pub padding_prob_max: Option<u8>,  // Probabilità massima (0-100) di applicare padding
+    pub dummy_prob_min: Option<u8>,    // Probabilità minima (0-100) di inserire dummy packets
+    pub dummy_prob_max: Option<u8>,    // Probabilità massima (0-100) di inserire dummy packets
+    pub frag_prob_min: Option<u8>,     // Probabilità minima (0-100) di frammentare pacchetti
+    pub frag_prob_max: Option<u8>,     // Probabilità massima (0-100) di frammentare pacchetti
 }
 
 impl ClientConfig {
     /// Imposta le probabilità di default dalla configurazione se non sono presenti nel JSON
     pub fn with_default_probabilities(
         mut self,
-        default_padding: u8,
-        default_dummy: u8,
-        default_fragmentation: u8,
+        default_padding_min: u8,
+        default_padding_max: u8,
+        default_dummy_min: u8,
+        default_dummy_max: u8,
+        default_frag_min: u8,
+        default_frag_max: u8,
     ) -> Self {
-        if self.padding_probability.is_none() {
-            self.padding_probability = Some(default_padding);
-        }
-        if self.dummy_probability.is_none() {
-            self.dummy_probability = Some(default_dummy);
-        }
-        if self.fragmentation_probability.is_none() {
-            self.fragmentation_probability = Some(default_fragmentation);
-        }
+        if self.padding_prob_min.is_none() { self.padding_prob_min = Some(default_padding_min); }
+        if self.padding_prob_max.is_none() { self.padding_prob_max = Some(default_padding_max); }
+        if self.dummy_prob_min.is_none()   { self.dummy_prob_min   = Some(default_dummy_min); }
+        if self.dummy_prob_max.is_none()   { self.dummy_prob_max   = Some(default_dummy_max); }
+        if self.frag_prob_min.is_none()    { self.frag_prob_min    = Some(default_frag_min); }
+        if self.frag_prob_max.is_none()    { self.frag_prob_max    = Some(default_frag_max); }
         self
     }
-    
+
     /// Ottieni i valori finali delle probabilità (con unwrap sicuro dopo with_default_probabilities)
-    pub fn get_probabilities(&self) -> (u8, u8, u8) {
+    pub fn get_probabilities(&self) -> (u8, u8, u8, u8, u8, u8) {
         (
-            self.padding_probability.unwrap_or(0),
-            self.dummy_probability.unwrap_or(0),
-            self.fragmentation_probability.unwrap_or(0),
+            self.padding_prob_min.unwrap_or(0),
+            self.padding_prob_max.unwrap_or(100),
+            self.dummy_prob_min.unwrap_or(0),
+            self.dummy_prob_max.unwrap_or(100),
+            self.frag_prob_min.unwrap_or(0),
+            self.frag_prob_max.unwrap_or(100),
         )
     }
     /// Converti le chiavi esadecimali in byte array

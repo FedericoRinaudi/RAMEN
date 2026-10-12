@@ -1,21 +1,16 @@
 use std::mem;
 
-/// Struttura chiave per la mappa BPF (corrisponde a struct client_config_key in C)
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct ClientConfigKey {
     pub ip_addr: u32,
     pub server_port: u16,
-    _padding: u16,  // Padding esplicito per allineamento a 8 bytes
+    pub _padding: u16, // Padding esplicito per l'allineamento
 }
 
 impl ClientConfigKey {
     pub fn new(ip_addr: u32, server_port: u16) -> Self {
-        Self { 
-            ip_addr, 
-            server_port,
-            _padding: 0,
-        }
+        Self { ip_addr, server_port, _padding: 0 }
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -28,7 +23,24 @@ impl ClientConfigKey {
     }
 }
 
-/// Struttura valore per la mappa BPF (corrisponde a struct client_config in C)
+/// Struttura valore per la mappa BPF (corrisponde a struct client_config in C).
+///
+/// Layout (offset / size):
+///  0  32  padding_key
+/// 32  32  dummy_key
+/// 64   8  expiration_time (u64)
+/// 72   1  padding_probability  (corrente, aggiornata da eBPF)
+/// 73   1  padding_prob_min
+/// 74   1  padding_prob_max
+/// 75   1  dummy_probability    (corrente)
+/// 76   1  dummy_prob_min
+/// 77   1  dummy_prob_max
+/// 78   1  frag_probability     (corrente)
+/// 79   1  frag_prob_min
+/// 80   1  frag_prob_max
+/// 81   7  _pad                 (allineamento a 8 byte)
+/// 88   8  prob_timestamp (u64) (ktime_get_ns dell'ultimo refresh)
+/// totale: 96 byte
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct ClientConfigValue {
@@ -36,8 +48,16 @@ pub struct ClientConfigValue {
     pub dummy_key: [u8; 32],
     pub expiration_time: u64,
     pub padding_probability: u8,
+    pub padding_prob_min: u8,
+    pub padding_prob_max: u8,
     pub dummy_probability: u8,
-    pub fragmentation_probability: u8,
+    pub dummy_prob_min: u8,
+    pub dummy_prob_max: u8,
+    pub frag_probability: u8,
+    pub frag_prob_min: u8,
+    pub frag_prob_max: u8,
+    pub _pad: [u8; 7],
+    pub prob_timestamp: u64,
 }
 
 impl ClientConfigValue {
@@ -45,17 +65,30 @@ impl ClientConfigValue {
         padding_key: &[u8],
         dummy_key: &[u8],
         expiration_time: u64,
-        padding_probability: u8,
-        dummy_probability: u8,
-        fragmentation_probability: u8,
+        padding_prob_min: u8,
+        padding_prob_max: u8,
+        dummy_prob_min: u8,
+        dummy_prob_max: u8,
+        frag_prob_min: u8,
+        frag_prob_max: u8,
     ) -> Self {
         let mut value = Self {
             padding_key: [0u8; 32],
             dummy_key: [0u8; 32],
             expiration_time,
-            padding_probability,
-            dummy_probability,
-            fragmentation_probability,
+            // Probabilità correnti inizializzate a min; eBPF le sovrascrive al primo pacchetto
+            // perché prob_timestamp = 0 garantisce che il refresh scatti immediatamente.
+            padding_probability: padding_prob_min,
+            padding_prob_min,
+            padding_prob_max,
+            dummy_probability: dummy_prob_min,
+            dummy_prob_min,
+            dummy_prob_max,
+            frag_probability: frag_prob_min,
+            frag_prob_min,
+            frag_prob_max,
+            _pad: [0u8; 7],
+            prob_timestamp: 0,
         };
         value.padding_key.copy_from_slice(padding_key);
         value.dummy_key.copy_from_slice(dummy_key);
@@ -75,7 +108,7 @@ impl ClientConfigValue {
         if bytes.len() != mem::size_of::<Self>() {
             return Err("Lunghezza byte non valida per ClientConfigValue");
         }
-        
+
         let value = unsafe {
             std::ptr::read(bytes.as_ptr() as *const Self)
         };
@@ -94,20 +127,29 @@ mod tests {
 
     #[test]
     fn test_client_config_key_size() {
-        // Verifica che la dimensione sia 8 bytes (4 IP + 2 port + 2 padding)
+        // 4 IP + 2 port + 2 padding = 8 bytes
         assert_eq!(mem::size_of::<ClientConfigKey>(), 8);
     }
 
     #[test]
     fn test_client_config_value_size() {
-        // Verifica che la dimensione sia 75 bytes (32 + 32 + 8 + 1 + 1 + 1)
-        assert_eq!(mem::size_of::<ClientConfigValue>(), 75);
+        // 32 + 32 + 8 + 9 + 7 + 8 = 96 bytes
+        assert_eq!(mem::size_of::<ClientConfigValue>(), 96);
     }
 
     #[test]
     fn test_client_config_value_expiration() {
-        let value = ClientConfigValue::new(&[0u8; 32], &[0u8; 32], 100, 70, 70, 70);
+        let value = ClientConfigValue::new(&[0u8; 32], &[0u8; 32], 100, 30, 70, 30, 70, 30, 70);
         assert!(!value.is_expired(50));
         assert!(value.is_expired(150));
+    }
+
+    #[test]
+    fn test_initial_prob_set_to_min() {
+        let value = ClientConfigValue::new(&[0u8; 32], &[0u8; 32], 100, 20, 80, 10, 60, 5, 50);
+        assert_eq!(value.padding_probability, 20);
+        assert_eq!(value.dummy_probability, 10);
+        assert_eq!(value.frag_probability, 5);
+        assert_eq!(value.prob_timestamp, 0);
     }
 }

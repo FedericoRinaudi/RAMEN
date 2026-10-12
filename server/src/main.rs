@@ -20,9 +20,12 @@ use user::{BpfLoader, BpfState};
 
 // Struttura per le probabilità di default
 pub struct DefaultProbabilities {
-    pub padding: u8,
-    pub dummy: u8,
-    pub fragmentation: u8,
+    pub padding_min: u8,
+    pub padding_max: u8,
+    pub dummy_min: u8,
+    pub dummy_max: u8,
+    pub frag_min: u8,
+    pub frag_max: u8,
 }
 
 // Endpoint per inserire la configurazione del client nella mappa BPF
@@ -35,17 +38,23 @@ fn set_config(
 ) -> Result<String, Status> {
     // Parsing delle chiavi dal DTO e impostazione probabilità default
     let mut config = config.into_inner();
-    log_debug!("[CONFIG] Ricevute probabilità: padding={:?}, dummy={:?}, fragmentation={:?}", 
-             config.padding_probability, config.dummy_probability, config.fragmentation_probability);
-    
-    config = config.with_default_probabilities(default_probs.padding, default_probs.dummy, default_probs.fragmentation);
-    let (padding_prob, dummy_prob, frag_prob) = config.get_probabilities();
-    log_debug!("[CONFIG] Dopo default: padding={}, dummy={}, fragmentation={}", 
-             padding_prob, dummy_prob, frag_prob);
-    
+    log_debug!("[CONFIG] Ricevute prob: pad=[{:?},{:?}] dummy=[{:?},{:?}] frag=[{:?},{:?}]",
+             config.padding_prob_min, config.padding_prob_max,
+             config.dummy_prob_min,   config.dummy_prob_max,
+             config.frag_prob_min,    config.frag_prob_max);
+
+    config = config.with_default_probabilities(
+        default_probs.padding_min, default_probs.padding_max,
+        default_probs.dummy_min,   default_probs.dummy_max,
+        default_probs.frag_min,    default_probs.frag_max,
+    );
+    let (pad_min, pad_max, dum_min, dum_max, fr_min, fr_max) = config.get_probabilities();
+    log_debug!("[CONFIG] Dopo default: pad=[{},{}] dummy=[{},{}] frag=[{},{}]",
+             pad_min, pad_max, dum_min, dum_max, fr_min, fr_max);
+
     let (padding_key, dummy_key) = config.parse_keys()
         .map_err(|_| Status::BadRequest)?;
-    
+
     // Crea la configurazione BPF
     let bpf_config = user::models::BpfConfig::new(
         padding_key,
@@ -53,9 +62,12 @@ fn set_config(
         config.duration_seconds,
         client_ip.0,
         config.server_port,
-        padding_prob,
-        dummy_prob,
-        frag_prob,
+        pad_min,
+        pad_max,
+        dum_min,
+        dum_max,
+        fr_min,
+        fr_max,
     );
     
     // Inserimento tramite il service
@@ -97,31 +109,41 @@ fn rocket() -> _ {
         .extract_inner::<u32>("force_cleanup_every")
         .unwrap_or(12); // Default: ogni 12 iterazioni
     
-    let default_padding_probability = rocket.figment()
-        .extract_inner::<u8>("default_padding_probability")
-        .unwrap_or(70); // Default: 70%
-    
-    let default_dummy_probability = rocket.figment()
-        .extract_inner::<u8>("default_dummy_probability")
-        .unwrap_or(70); // Default: 70%
-    
-    let default_fragmentation_probability = rocket.figment()
-        .extract_inner::<u8>("default_fragmentation_probability")
-        .unwrap_or(70); // Default: 70%
-    
+    let default_padding_prob_min = rocket.figment()
+        .extract_inner::<u8>("default_padding_prob_min")
+        .unwrap_or(30);
+    let default_padding_prob_max = rocket.figment()
+        .extract_inner::<u8>("default_padding_prob_max")
+        .unwrap_or(70);
+    let default_dummy_prob_min = rocket.figment()
+        .extract_inner::<u8>("default_dummy_prob_min")
+        .unwrap_or(30);
+    let default_dummy_prob_max = rocket.figment()
+        .extract_inner::<u8>("default_dummy_prob_max")
+        .unwrap_or(70);
+    let default_frag_prob_min = rocket.figment()
+        .extract_inner::<u8>("default_frag_prob_min")
+        .unwrap_or(30);
+    let default_frag_prob_max = rocket.figment()
+        .extract_inner::<u8>("default_frag_prob_max")
+        .unwrap_or(70);
+
     // Carica e attacca i programmi eBPF
     let bpf_loader = BpfLoader::run(&ifname).unwrap_or_else(|e| {
         panic!("Error running eBPF program: {}", e);
     });
-    
+
     let bpf_state = Arc::new(BpfState {
         loader: Arc::new(Mutex::new(bpf_loader)),
     });
-    
+
     let default_probabilities = DefaultProbabilities {
-        padding: default_padding_probability,
-        dummy: default_dummy_probability,
-        fragmentation: default_fragmentation_probability,
+        padding_min: default_padding_prob_min,
+        padding_max: default_padding_prob_max,
+        dummy_min:   default_dummy_prob_min,
+        dummy_max:   default_dummy_prob_max,
+        frag_min:    default_frag_prob_min,
+        frag_max:    default_frag_prob_max,
     };
     
     rocket

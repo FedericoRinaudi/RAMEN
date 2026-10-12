@@ -42,9 +42,12 @@ impl BpfManager {
             &padding_key,
             &dummy_key,
             server.expiration_timestamp() as u64,
-            server.padding_probability,
-            server.dummy_probability,
-            server.fragmentation_probability,
+            server.padding_prob_min,
+            server.padding_prob_max,
+            server.dummy_prob_min,
+            server.dummy_prob_max,
+            server.frag_prob_min,
+            server.frag_prob_max,
         );
         
         loader.maps().update(

@@ -178,9 +178,12 @@ impl BpfLoader {
             &config.padding_key,
             &config.dummy_key,
             expiration_time,
-            config.padding_probability,
-            config.dummy_probability,
-            config.fragmentation_probability,
+            config.padding_prob_min,
+            config.padding_prob_max,
+            config.dummy_prob_min,
+            config.dummy_prob_max,
+            config.frag_prob_min,
+            config.frag_prob_max,
         );
         
         self.maps().update(

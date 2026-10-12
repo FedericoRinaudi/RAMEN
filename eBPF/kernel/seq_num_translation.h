@@ -168,6 +168,11 @@ static __always_inline __u8 translate_seq_num(struct __sk_buff *skb, void* seq_n
     *output_seq_num = translation->translated_seq;
     debug_print("[SEQ_TRANS] Translating seq_num: %u -> %u", input_seq_num, *output_seq_num);
 
+    //if (input_seq_num == *output_seq_num) {
+    //    debug_print("[SEQ_TRANS] No change in seq_num: %u", input_seq_num);
+    //    return 1;
+    //}
+
     int result = replace_seq_num(skb, ip_header_len, *output_seq_num);
     if (result != 1) {
         debug_print("[SEQ_TRANS] Failed to replace seq_num");

@@ -264,6 +264,13 @@ int handle_egress(struct __sk_buff *skb) {
         debug_print("[EGRESS] No config for destination IP, passing through");
         return TC_ACT_OK;
     }
+
+    __u16 csum;
+    if (bpf_skb_load_bytes(skb, sizeof(struct ethhdr) + ip_header_len + offsetof(struct tcphdr, check), &csum, sizeof(csum)) < 0)
+        return TC_ACT_SHOT;
+
+    
+    debug_print("[EGRESS] Original TCP checksum: 0x%04x", csum);
     
     __u8 result = skb_mark_get_type(skb);
     

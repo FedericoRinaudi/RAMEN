@@ -8,9 +8,12 @@ pub struct ConfigPayload {
     pub dummy_key: String,
     pub duration_seconds: u64,
     pub server_port: u16,
-    pub padding_probability: u8,
-    pub dummy_probability: u8,
-    pub fragmentation_probability: u8,
+    pub padding_prob_min: u8,
+    pub padding_prob_max: u8,
+    pub dummy_prob_min: u8,
+    pub dummy_prob_max: u8,
+    pub frag_prob_min: u8,
+    pub frag_prob_max: u8,
 }
 
 /// Client HTTP per comunicare con i server
@@ -48,9 +51,12 @@ impl HttpClient {
             dummy_key: dummy_key_hex.to_string(),
             duration_seconds: server.duration_seconds,
             server_port: server.service_port,
-            padding_probability: server.padding_probability,
-            dummy_probability: server.dummy_probability,
-            fragmentation_probability: server.fragmentation_probability,
+            padding_prob_min: server.padding_prob_min,
+            padding_prob_max: server.padding_prob_max,
+            dummy_prob_min: server.dummy_prob_min,
+            dummy_prob_max: server.dummy_prob_max,
+            frag_prob_min: server.frag_prob_min,
+            frag_prob_max: server.frag_prob_max,
         };
         
         let url = format!("https://{}:{}{}", server.server_ip, server.http_port, server.endpoint);

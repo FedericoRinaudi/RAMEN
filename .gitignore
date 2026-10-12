@@ -95,3 +95,7 @@ vmlinux.h
 
 # Generated libbpf skeleton files (do not commit generated code)
 **/src/bpf/*_skel.rs
+
+*.png
+*.csv
+*.pcap
