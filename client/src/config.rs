@@ -13,7 +13,7 @@ pub struct ServerConfig {
     /// Porta del servizio HTTP del server (per la richiesta HTTP)
     pub http_port: u16,
     
-    /// Porta del servizio WFSafe (da inserire nel body e usare come chiave eBPF)
+    /// Porta del servizio RAMEN (da inserire nel body e usare come chiave eBPF)
     pub service_port: u16,
     
     /// URL dell'endpoint per inviare la configurazione

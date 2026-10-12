@@ -4,7 +4,7 @@ use tokio::net::UnixStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use chrono::Utc;
 
-const SOCKET_PATH: &str = "/tmp/wfsafe_client.sock";
+const SOCKET_PATH: &str = "/tmp/RAMEN_client.sock";
 
 pub async fn send_command_to_daemon(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let command = args.get(1)
@@ -42,18 +42,18 @@ async fn send_command(command: DaemonCommand) -> Result<DaemonResponse, Box<dyn 
 
 fn print_usage() {
     println!("Uso:");
-    println!("  wfsafe-client                                           - Avvia il daemon (config: /etc/wfsafe/config.yaml)");
-    println!("  wfsafe-client list                                      - Elenca i server configurati");
-    println!("  wfsafe-client status                                    - Mostra lo stato del daemon");
-    println!("  wfsafe-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
+    println!("  RAMEN-client                                           - Avvia il daemon (config: /etc/RAMEN/config.yaml)");
+    println!("  RAMEN-client list                                      - Elenca i server configurati");
+    println!("  RAMEN-client status                                    - Mostra lo stato del daemon");
+    println!("  RAMEN-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
     println!("                                                          - Aggiungi un nuovo server");
-    println!("  wfsafe-client update <name> <campo> <valore>            - Aggiorna un campo del server");
-    println!("  wfsafe-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
+    println!("  RAMEN-client update <name> <campo> <valore>            - Aggiorna un campo del server");
+    println!("  RAMEN-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
     println!("                                                          - Aggiorna tutte le probabilità in una sola chiamata");
-    println!("  wfsafe-client renew <name>                              - Rigenera le chiavi per un server");
-    println!("  wfsafe-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
+    println!("  RAMEN-client renew <name>                              - Rigenera le chiavi per un server");
+    println!("  RAMEN-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
     println!("                                                          - Modifica parametri di cleanup delle mappe");
-    println!("  wfsafe-client shutdown                                  - Arresta il daemon");
+    println!("  RAMEN-client shutdown                                  - Arresta il daemon");
     println!();
     println!("Campi aggiornabili:");
     println!("  server_ip, http_port, service_port, endpoint, duration_seconds,");
@@ -128,7 +128,7 @@ async fn handle_list() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 4 {
-        println!("Uso: wfsafe-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
+        println!("Uso: RAMEN-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
         return Err("Argomenti insufficienti".into());
     }
     
@@ -176,7 +176,7 @@ async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 7 {
-        println!("Uso: wfsafe-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
+        println!("Uso: RAMEN-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
         return Err("Argomenti insufficienti".into());
     }
 
@@ -206,7 +206,7 @@ async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::
 
 async fn handle_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 3 {
-        println!("Uso: wfsafe-client update <name> <campo> <valore>");
+        println!("Uso: RAMEN-client update <name> <campo> <valore>");
         return Err("Argomenti insufficienti".into());
     }
     
@@ -229,7 +229,7 @@ async fn handle_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>
 
 async fn handle_renew(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
-        println!("Uso: wfsafe-client renew <name>");
+        println!("Uso: RAMEN-client renew <name>");
         return Err("Specificare il nome del server".into());
     }
     
@@ -250,12 +250,12 @@ async fn handle_renew(args: &[String]) -> Result<(), Box<dyn std::error::Error>>
 
 async fn handle_set_cleanup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
-        println!("Uso: wfsafe-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
+        println!("Uso: RAMEN-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
         println!();
         println!("Esempi:");
-        println!("  wfsafe-client set-cleanup --interval 10");
-        println!("  wfsafe-client set-cleanup --cpu 10.0 --timestamp 120");
-        println!("  wfsafe-client set-cleanup --force 30");
+        println!("  RAMEN-client set-cleanup --interval 10");
+        println!("  RAMEN-client set-cleanup --cpu 10.0 --timestamp 120");
+        println!("  RAMEN-client set-cleanup --force 30");
         return Err("Specificare almeno un parametro".into());
     }
     

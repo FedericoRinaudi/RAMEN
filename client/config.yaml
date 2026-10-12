@@ -1,4 +1,4 @@
-# Configurazione del client WFSafe
+# Configurazione del client RAMEN
 # Questo file viene letto periodicamente dal daemon
 
 # Interfaccia di rete su cui caricare il programma eBPF
@@ -19,7 +19,7 @@ servers:
   - name: server_query
     server_ip: 10.133.6.2
     http_port: 8000        # Porta del servizio HTTP (per la richiesta)
-    service_port: 8080     # Porta del servizio WFSafe (chiave eBPF)
+    service_port: 8080     # Porta del servizio RAMEN (chiave eBPF)
     endpoint: /config
     
     # Timestamp dell'ultimo invio delle chiavi al server (ISO 8601)
@@ -40,7 +40,7 @@ servers:
   - name: server_res
     server_ip: 10.133.6.2
     http_port: 8000        # Porta del servizio HTTP (per la richiesta)
-    service_port: 8081     # Porta del servizio WFSafe (chiave eBPF)
+    service_port: 8081     # Porta del servizio RAMEN (chiave eBPF)
     endpoint: /config
 
     # Timestamp dell'ultimo invio delle chiavi al server (ISO 8601)

@@ -18,7 +18,7 @@ pub struct Daemon {
 impl Daemon {
     /// Crea e inizializza un nuovo daemon
     pub fn new(config_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        log_info!("=== WFSafe Client Daemon ===\n");
+        log_info!("=== RAMEN Client Daemon ===\n");
         log_debug!("Caricamento configurazione da: {}", config_path);
         
         // Carica la configurazione iniziale

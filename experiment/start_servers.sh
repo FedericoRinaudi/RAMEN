@@ -4,8 +4,8 @@
 # Uso: ./start_servers.sh [--http]
 #   --http  avvia i server in modalità plain TCP
 
-QUERY_SERVER_BIN="/home/ubuntu/WFSafeBPF/experiment/server/target/release/query-server"
-RESOLUTION_SERVER_BIN="/home/ubuntu/WFSafeBPF/experiment/server/target/release/resolution-server"
+QUERY_SERVER_BIN="/home/ubuntu/RAMEN/experiment/server/target/release/query-server"
+RESOLUTION_SERVER_BIN="/home/ubuntu/RAMEN/experiment/server/target/release/resolution-server"
 
 PORT_QUERY=8080
 PORT_RESOLUTION=8081

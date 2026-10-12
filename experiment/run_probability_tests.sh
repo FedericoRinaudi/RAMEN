@@ -18,10 +18,10 @@ for arg in "$@"; do
 done
 
 # ── Percorsi ─────────────────────────────────────────────────────────────────
-CLIENT_PATH="/home/ubuntu/WFSafeBPF/client/target/release/client"
-QUERY_CLIENT_BIN="/home/ubuntu/WFSafeBPF/experiment/client/target/release/query-client"
-RESOLUTION_CLIENT_BIN="/home/ubuntu/WFSafeBPF/experiment/client/target/release/resolution-client"
-RESULTS_DIR="/home/ubuntu/WFSafeBPF/results"
+CLIENT_PATH="/home/ubuntu/RAMEN/client/target/release/client"
+QUERY_CLIENT_BIN="/home/ubuntu/RAMEN/experiment/client/target/release/query-client"
+RESOLUTION_CLIENT_BIN="/home/ubuntu/RAMEN/experiment/client/target/release/resolution-client"
+RESULTS_DIR="/home/ubuntu/RAMEN/results"
 
 # ── Parametri esperimento ─────────────────────────────────────────────────────
 N_REQUESTS=10      # richieste per ogni run (loop gestito qui)

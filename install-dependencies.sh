@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# WFSafe - Complete Dependency Installation Script
+# RAMEN - Complete Dependency Installation Script
 # Installs all dependencies for eBPF, Rust, and the entire project
 
 set -e

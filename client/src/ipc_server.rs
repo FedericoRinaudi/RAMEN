@@ -7,7 +7,7 @@ use tokio::time::Instant;
 use std::sync::{Arc, Mutex};
 use std::path::Path;
 
-const SOCKET_PATH: &str = "/tmp/wfsafe_client.sock";
+const SOCKET_PATH: &str = "/tmp/RAMEN_client.sock";
 
 /// Server IPC per ricevere comandi dal CLI
 pub struct IpcServer {

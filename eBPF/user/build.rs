@@ -24,14 +24,14 @@ fn main() {
     // Path to the eBPF source file
     let manifest_dir = env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set");
     let in_path = PathBuf::from(&manifest_dir)
-        .join("..").join("kernel").join("wfsafebpf.bpf.c");
+        .join("..").join("kernel").join("RAMEN.bpf.c");
     
     // Output directory: shared/src/bpf/
     let mut out = PathBuf::from(&manifest_dir).join("src").join("bpf");
     
     // Create the folder if it doesn't exist
     fs::create_dir_all(&out).expect("failed to create src/bpf directory");
-    out.push("wfsafebpf_skel.rs");
+    out.push("RAMEN_skel.rs");
 
     // Pass IS_SERVER and DEBUG flags to clang
     let is_server_arg = format!("-DIS_SERVER={}", is_server);

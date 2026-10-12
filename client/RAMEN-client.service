@@ -1,14 +1,14 @@
 [Unit]
-Description=WFSafe Client Daemon - VPN Traffic Encryption with eBPF
-Documentation=https://github.com/FedericoRinaudi/WFSafeBPF
+Description=RAMEN Client Daemon - VPN Traffic Encryption with eBPF
+Documentation=https://github.com/FedericoRinaudi/RAMEN
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/wfsafe
-ExecStart=/usr/local/bin/wfsafe-client
+WorkingDirectory=/opt/RAMEN
+ExecStart=/usr/local/bin/RAMEN-client
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -19,7 +19,7 @@ NoNewPrivileges=false
 PrivateTmp=false
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/etc/wfsafe /var/log/wfsafe /tmp
+ReadWritePaths=/etc/RAMEN /var/log/RAMEN /tmp
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_BPF CAP_SYS_ADMIN CAP_SYS_RESOURCE
 AmbientCapabilities=CAP_NET_ADMIN CAP_BPF CAP_SYS_ADMIN CAP_SYS_RESOURCE
 

@@ -8,10 +8,10 @@ use super::maps::BpfMapManager;
 use crate::{ClientConfigKey, ClientConfigValue};
 
 // Include the generated libbpf skeleton so the types are available at compile time
-include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/wfsafebpf_skel.rs"));
+include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/RAMEN_skel.rs"));
 
 pub struct BpfLoader {
-    skel: WfsafebpfSkel<'static>,
+    skel: RAMENSkel<'static>,
     ifindex: i32,
 }
 
@@ -21,7 +21,7 @@ impl BpfLoader {
         let ifindex = nix::net::if_::if_nametoindex(ifname)? as i32;
         // Open and load the skeleton
         let open_obj_box = Box::leak(Box::new(std::mem::MaybeUninit::<libbpf_rs::OpenObject>::uninit()));
-        let skel = WfsafebpfSkelBuilder::default().open(open_obj_box)?.load()?;
+        let skel = RAMENSkelBuilder::default().open(open_obj_box)?.load()?;
         
         // Attach ingress program manually using TC hook
         let mut ingress_hook = TcHookBuilder::new(skel.progs.handle_ingress.as_fd())
