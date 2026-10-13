@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: MIT OR GPL-2.0
 #ifndef __SEQ_NUM_TRANSLATION_H
 #define __SEQ_NUM_TRANSLATION_H
 
