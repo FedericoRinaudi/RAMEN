@@ -135,8 +135,8 @@ impl Daemon {
             log_debug!("\nServer: {}", server.name);
             log_debug!("  Endpoint: http://{}:{}{}", server.server_ip, server.http_port, server.endpoint);
             log_debug!("  Service Port: {}", server.service_port);
-            let expiration = server.last_sent_at + chrono::Duration::seconds(server.duration_seconds as i64);
-            log_debug!("  Last sent: {} (expires: {})", server.last_sent_at, expiration);
+            log_debug!("  Last sent: {} (expires: {})", server.last_sent_at,
+                server.last_sent_at + chrono::Duration::seconds(server.duration_seconds as i64));
             
             if server.needs_renewal() {
                 log_info!("  Server '{}': keys expired, renewing...", server.name);
@@ -158,9 +158,9 @@ impl Daemon {
                             server.update_last_sent();
                             config_changed = true;
                             
-                            let new_expiration = server.last_sent_at + chrono::Duration::seconds(server.duration_seconds as i64);
                             log_info!("  Server '{}': configuration renewed successfully", server.name);
-                            log_debug!("  Expires: {}", new_expiration);
+                            log_debug!("  Expires: {}",
+                                server.last_sent_at + chrono::Duration::seconds(server.duration_seconds as i64));
                         }
                     }
                     Err(e) => {

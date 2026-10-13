@@ -11,7 +11,7 @@ mod daemon;
 
 use daemon::Daemon;
 
-const DEFAULT_CONFIG_PATH: &str = "/etc/RAMEN/config.yaml";
+const DEFAULT_CONFIG_PATH: &str = "/etc/ramen/config.yaml";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -11,7 +11,7 @@ set -e
 
 # Usage: ./run_probability_tests.sh [--http]
 #   --http  use plain TCP instead of TLS (payload enlarged for equal wire size)
-SERVER_ADDR="${SERVER_ADDR:-10.133.6.2}"
+SERVER_ADDR="${SERVER_ADDR:-192.0.2.10}"
 PORT_QUERY="${PORT_QUERY:-8080}"
 PORT_RESOLUTION="${PORT_RESOLUTION:-8081}"
 PORT_QUERY_NODEF="${PORT_QUERY_NODEF:-8082}"

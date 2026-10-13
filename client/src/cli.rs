@@ -4,7 +4,7 @@ use tokio::net::UnixStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use chrono::Utc;
 
-const SOCKET_PATH: &str = "/tmp/RAMEN_client.sock";
+const SOCKET_PATH: &str = "/tmp/ramen_client.sock";
 
 pub async fn send_command_to_daemon(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let command = args.get(1)
@@ -42,18 +42,18 @@ async fn send_command(command: DaemonCommand) -> Result<DaemonResponse, Box<dyn 
 
 fn print_usage() {
     println!("Usage:");
-    println!("  RAMEN-client                                           - Start the daemon (config: /etc/RAMEN/config.yaml)");
-    println!("  RAMEN-client list                                      - List the configured servers");
-    println!("  RAMEN-client status                                    - Show the daemon status");
-    println!("  RAMEN-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
+    println!("  ramen-client                                           - Start the daemon (config: /etc/ramen/config.yaml)");
+    println!("  ramen-client list                                      - List the configured servers");
+    println!("  ramen-client status                                    - Show the daemon status");
+    println!("  ramen-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
     println!("                                                          - Add a new server");
-    println!("  RAMEN-client update <name> <field> <value>             - Update a server field");
-    println!("  RAMEN-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
+    println!("  ramen-client update <name> <field> <value>             - Update a server field");
+    println!("  ramen-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
     println!("                                                          - Update all probabilities in a single call");
-    println!("  RAMEN-client renew <name>                              - Regenerate the keys for a server");
-    println!("  RAMEN-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
+    println!("  ramen-client renew <name>                              - Regenerate the keys for a server");
+    println!("  ramen-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
     println!("                                                          - Change the map cleanup parameters");
-    println!("  RAMEN-client shutdown                                  - Stop the daemon");
+    println!("  ramen-client shutdown                                  - Stop the daemon");
     println!();
     println!("Updatable fields:");
     println!("  server_ip, http_port, service_port, endpoint, duration_seconds,
@@ -127,7 +127,7 @@ async fn handle_list() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 4 {
-        println!("Usage: RAMEN-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
+        println!("Usage: ramen-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
         return Err("Not enough arguments".into());
     }
     
@@ -175,7 +175,7 @@ async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 7 {
-        println!("Usage: RAMEN-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
+        println!("Usage: ramen-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
         return Err("Not enough arguments".into());
     }
 
@@ -205,7 +205,7 @@ async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::
 
 async fn handle_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 3 {
-        println!("Usage: RAMEN-client update <name> <field> <value>");
+        println!("Usage: ramen-client update <name> <field> <value>");
         return Err("Not enough arguments".into());
     }
     
@@ -228,7 +228,7 @@ async fn handle_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>
 
 async fn handle_renew(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
-        println!("Usage: RAMEN-client renew <name>");
+        println!("Usage: ramen-client renew <name>");
         return Err("Specify the server name".into());
     }
     
@@ -249,12 +249,12 @@ async fn handle_renew(args: &[String]) -> Result<(), Box<dyn std::error::Error>>
 
 async fn handle_set_cleanup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
-        println!("Usage: RAMEN-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
+        println!("Usage: ramen-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
         println!();
         println!("Examples:");
-        println!("  RAMEN-client set-cleanup --interval 10");
-        println!("  RAMEN-client set-cleanup --cpu 10.0 --timestamp 120");
-        println!("  RAMEN-client set-cleanup --force 30");
+        println!("  ramen-client set-cleanup --interval 10");
+        println!("  ramen-client set-cleanup --cpu 10.0 --timestamp 120");
+        println!("  ramen-client set-cleanup --force 30");
         return Err("Specify at least one parameter".into());
     }
     

@@ -1,17 +1,20 @@
 use libbpf_rs::skel::{SkelBuilder, Skel, OpenSkel};
 use libbpf_rs::{TcHookBuilder, TC_EGRESS, TC_INGRESS, MapCore};
 use std::os::fd::AsFd;
-use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::maps::BpfMapManager;
 use crate::{ClientConfigKey, ClientConfigValue};
 
 // Include the generated libbpf skeleton so the types are available at compile time
-include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/RAMEN_skel.rs"));
+#[allow(unused_imports)]
+mod skel {
+    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/ramen_skel.rs"));
+}
+use skel::*;
 
 pub struct BpfLoader {
-    skel: RAMENSkel<'static>,
+    skel: RamenSkel<'static>,
     ifindex: i32,
 }
 
@@ -19,7 +22,7 @@ impl BpfLoader {
     pub fn run(ifname: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let ifindex = nix::net::if_::if_nametoindex(ifname)? as i32;
         let open_obj_box = Box::leak(Box::new(std::mem::MaybeUninit::<libbpf_rs::OpenObject>::uninit()));
-        let skel = RAMENSkelBuilder::default().open(open_obj_box)?.load()?;
+        let skel = RamenSkelBuilder::default().open(open_obj_box)?.load()?;
         
         let mut ingress_hook = TcHookBuilder::new(skel.progs.handle_ingress.as_fd())
             .ifindex(ifindex)

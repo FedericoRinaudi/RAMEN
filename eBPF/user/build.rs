@@ -21,12 +21,12 @@ fn main() {
 
     let manifest_dir = env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set");
     let in_path = PathBuf::from(&manifest_dir)
-        .join("..").join("kernel").join("RAMEN.bpf.c");
+        .join("..").join("kernel").join("ramen.bpf.c");
     
     let mut out = PathBuf::from(&manifest_dir).join("src").join("bpf");
     
     fs::create_dir_all(&out).expect("failed to create src/bpf directory");
-    out.push("RAMEN_skel.rs");
+    out.push("ramen_skel.rs");
 
     let is_server_arg = format!("-DIS_SERVER={}", is_server);
     let debug_arg = format!("-DDEBUG={}", debug);

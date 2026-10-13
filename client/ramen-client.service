@@ -7,8 +7,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/RAMEN
-ExecStart=/usr/local/bin/RAMEN-client
+WorkingDirectory=/opt/ramen
+ExecStart=/usr/local/bin/ramen-client
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -18,7 +18,7 @@ NoNewPrivileges=false
 PrivateTmp=false
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/etc/RAMEN /var/log/RAMEN /tmp
+ReadWritePaths=/etc/ramen /var/log/ramen /tmp
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_BPF CAP_SYS_ADMIN CAP_SYS_RESOURCE
 AmbientCapabilities=CAP_NET_ADMIN CAP_BPF CAP_SYS_ADMIN CAP_SYS_RESOURCE
 

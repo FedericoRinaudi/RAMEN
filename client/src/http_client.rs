@@ -30,12 +30,6 @@ impl HttpClient {
         Self { client }
     }
     
-    pub fn new_secure() -> Self {
-        Self {
-            client: reqwest::Client::new(),
-        }
-    }
-    
     pub async fn send_config_with_keys(
         &self, 
         server: &ServerConfig,

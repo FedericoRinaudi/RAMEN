@@ -19,7 +19,7 @@ static __always_inline __s8 remove_padding_internal(struct __sk_buff *skb) {
         return result;
     tcp_payload_offset = sizeof(struct ethhdr)
                              + ip_header_len
-                             + tcp_header_len;;
+                             + tcp_header_len;
     __s8 remove_result;
     
     struct client_config *config = get_client_config_ingress(skb, ip_header_len);

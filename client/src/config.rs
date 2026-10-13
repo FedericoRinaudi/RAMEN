@@ -9,7 +9,7 @@ pub struct ServerConfig {
     
     pub http_port: u16,
     
-    /// RAMEN service port (sent in the request body and used as the eBPF key)
+    /// Port of the protected service (sent in the request body and used as the eBPF key)
     pub service_port: u16,
     
     pub endpoint: String,

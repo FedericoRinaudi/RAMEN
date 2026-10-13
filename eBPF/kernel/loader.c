@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
     char bpf_obj_path[256];
     char *prog_dir = strdup(argv[0]);
     char *dir_path = dirname(prog_dir);
-    snprintf(bpf_obj_path, sizeof(bpf_obj_path), "%s/RAMEN.bpf.o", dir_path);
+    snprintf(bpf_obj_path, sizeof(bpf_obj_path), "%s/ramen.bpf.o", dir_path);
     free(prog_dir);
     
     bpf_obj = bpf_object__open_file(bpf_obj_path, NULL);

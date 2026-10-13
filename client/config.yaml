@@ -13,7 +13,7 @@ servers:
   - name: server_query
     server_ip: 192.0.2.10
     http_port: 8000
-    service_port: 8080     # RAMEN service port (eBPF key)
+    service_port: 8080     # Port of the protected service (eBPF key)
     endpoint: /config
     
     # Keys are generated on the fly and never saved
@@ -32,7 +32,7 @@ servers:
   - name: server_res
     server_ip: 192.0.2.10
     http_port: 8000
-    service_port: 8081     # RAMEN service port (eBPF key)
+    service_port: 8081     # Port of the protected service (eBPF key)
     endpoint: /config
 
     # Keys are generated on the fly and never saved
