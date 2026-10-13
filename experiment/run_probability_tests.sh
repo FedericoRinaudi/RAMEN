@@ -11,8 +11,6 @@ set -e
 
 # Usage: ./run_probability_tests.sh [--http]
 #   --http  use plain TCP instead of TLS (payload enlarged for equal wire size)
-# Every variable below can be overridden from the environment,
-# e.g. SERVER_ADDR=10.0.0.2 ROUNDS=50 ./run_probability_tests.sh
 SERVER_ADDR="${SERVER_ADDR:-10.133.6.2}"
 PORT_QUERY="${PORT_QUERY:-8080}"
 PORT_RESOLUTION="${PORT_RESOLUTION:-8081}"

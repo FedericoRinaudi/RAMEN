@@ -3,7 +3,6 @@
 # Starts the 4 experiment servers and stops them all on exit.
 # Usage: ./start_servers.sh [--http]
 #   --http  start the servers in plain TCP mode
-# The ports can be overridden from the environment, e.g. PORT_QUERY=9080 ./start_servers.sh
 PORT_QUERY="${PORT_QUERY:-8080}"
 PORT_RESOLUTION="${PORT_RESOLUTION:-8081}"
 PORT_QUERY_NODEF="${PORT_QUERY_NODEF:-8082}"
