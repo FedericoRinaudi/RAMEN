@@ -11,24 +11,33 @@ set -e
 
 # Usage: ./run_probability_tests.sh [--http]
 #   --http  use plain TCP instead of TLS (payload enlarged for equal wire size)
+# Every variable below can be overridden from the environment,
+# e.g. SERVER_ADDR=10.0.0.2 ROUNDS=50 ./run_probability_tests.sh
+SERVER_ADDR="${SERVER_ADDR:-10.133.6.2}"
+PORT_QUERY="${PORT_QUERY:-8080}"
+PORT_RESOLUTION="${PORT_RESOLUTION:-8081}"
+PORT_QUERY_NODEF="${PORT_QUERY_NODEF:-8082}"
+PORT_RESOLUTION_NODEF="${PORT_RESOLUTION_NODEF:-8083}"
+N_REQUESTS="${N_REQUESTS:-10}"      # requests per run (the loop is handled here)
+ROUNDS="${ROUNDS:-500}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RESULTS_DIR="${RESULTS_DIR:-$REPO_ROOT/results}"
+CLIENT_PATH="$REPO_ROOT/client/target/release/client"
+QUERY_CLIENT_BIN="$REPO_ROOT/experiment/client/target/release/query-client"
+RESOLUTION_CLIENT_BIN="$REPO_ROOT/experiment/client/target/release/resolution-client"
+
 HTTP_FLAG=""
 for arg in "$@"; do
     [ "$arg" = "--http" ] && HTTP_FLAG="--http" && break
 done
 
-CLIENT_PATH="/home/ubuntu/RAMEN/client/target/release/client"
-QUERY_CLIENT_BIN="/home/ubuntu/RAMEN/experiment/client/target/release/query-client"
-RESOLUTION_CLIENT_BIN="/home/ubuntu/RAMEN/experiment/client/target/release/resolution-client"
-RESULTS_DIR="/home/ubuntu/RAMEN/results"
-
-N_REQUESTS=10      # requests per run (the loop is handled here)
-ROUNDS=500
 TARGET=$((N_REQUESTS * ROUNDS))   # target entries for each CSV file
 
-QUERY_SERVER="10.133.6.2:8080"
-RESOLUTION_SERVER="10.133.6.2:8081"
-QUERY_NO_DEF_SERVER="10.133.6.2:8082"
-RESOLUTION_NO_DEF_SERVER="10.133.6.2:8083"
+QUERY_SERVER="$SERVER_ADDR:$PORT_QUERY"
+RESOLUTION_SERVER="$SERVER_ADDR:$PORT_RESOLUTION"
+QUERY_NO_DEF_SERVER="$SERVER_ADDR:$PORT_QUERY_NODEF"
+RESOLUTION_NO_DEF_SERVER="$SERVER_ADDR:$PORT_RESOLUTION_NODEF"
 
 mkdir -p "$RESULTS_DIR"
 SESSION_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -135,7 +144,7 @@ run_n_requests_max() {
     done
 }
 
-# run_test: one combination (defended) on 8080/8081
+# run_test: one combination (defended) on PORT_QUERY/PORT_RESOLUTION
 # $1=frag $2=dummy $3=padding $4=round $5=mode (fixed|max)
 run_test() {
     local frag=$1 dummy=$2 padding=$3 round=$4 mode=$5
@@ -282,7 +291,7 @@ for round in $(seq 1 "$ROUNDS"); do
 
     mapfile -t SHUFFLED < <(printf "%s\n" "${COMBOS[@]}" | shuf)
 
-    echo "Phase 1: 8080/8081 (defended, fixed + max)"
+    echo "Phase 1: $PORT_QUERY/$PORT_RESOLUTION (defended, fixed + max)"
     for combo in "${SHUFFLED[@]}"; do
         IFS=',' read -r padding dummy frag <<< "$combo"
         run_test "$frag" "$dummy" "$padding" "$round" "fixed"
@@ -290,7 +299,7 @@ for round in $(seq 1 "$ROUNDS"); do
     done
 
     echo ""
-    echo "Phase 2: 8082/8083 (undefended, single run)"
+    echo "Phase 2: $PORT_QUERY_NODEF/$PORT_RESOLUTION_NODEF (undefended, single run)"
     run_no_def "$round"
 done
 
