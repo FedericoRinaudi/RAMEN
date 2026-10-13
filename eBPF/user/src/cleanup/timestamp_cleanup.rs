@@ -2,19 +2,17 @@ use crate::models::MapValue;
 use crate::bpf::BpfLoader;
 use std::sync::{Arc, Mutex};
 
-/// Struttura per condividere lo stato BPF (compatibile con server e client)
 pub struct BpfState {
     pub loader: Arc<Mutex<BpfLoader>>,
 }
 
-/// Pulisce le entry vecchie da una mappa basandosi sul timestamp
 pub fn cleanup_by_timestamp(
     bpf_state: &BpfState,
     map_name: &str,
     threshold_ns: u64,
 ) -> Result<usize, Box<dyn std::error::Error>> {
-    // Usa il tempo monotonic (dal boot) per matchare bpf_ktime_get_ns()
-    // Leggiamo il monotonic time da /proc/uptime che è in secondi
+    // Use monotonic time (since boot) to match bpf_ktime_get_ns()
+    // Time since boot is read from /proc/uptime (in seconds): it matches bpf_ktime_get_ns() as long as the machine is never suspended
     let uptime_str = std::fs::read_to_string("/proc/uptime")?;
     let uptime_secs: f64 = uptime_str
         .split_whitespace()
@@ -25,15 +23,12 @@ pub fn cleanup_by_timestamp(
     
     let mut cleaned = 0;
     
-    // Ottieni tutte le chiavi (metodo di sola lettura)
     let keys = {
         let loader = bpf_state.loader.lock().unwrap();
         loader.read_map_keys(map_name)?
     };
     
-    // Itera su tutte le entry
     for key_bytes in keys {
-        // Leggi il valore per controllare il timestamp (metodo di sola lettura)
         let value_bytes = {
             let loader = bpf_state.loader.lock().unwrap();
             loader.read_map_value(map_name, &key_bytes)?
@@ -43,7 +38,6 @@ pub fn cleanup_by_timestamp(
             if let Ok(value) = MapValue::from_bytes(&vb) {
                 let age_ns = current_time_ns.saturating_sub(value.timestamp_ns);
                 
-                // Se l'entry è più vecchia della soglia, eliminala
                 if age_ns > threshold_ns {
                     let mut loader = bpf_state.loader.lock().unwrap();
                     let mut maps = loader.maps();
@@ -58,7 +52,6 @@ pub fn cleanup_by_timestamp(
     Ok(cleaned)
 }
 
-/// Pulisce tutte le mappe seq e ack basandosi sul timestamp
 pub fn cleanup_all_maps_by_timestamp(
     bpf_state: &BpfState,
     threshold_ns: u64,
@@ -74,14 +67,12 @@ pub fn cleanup_all_maps_by_timestamp(
     
     let mut total = 0;
     
-    // Pulisci tutte le mappe seq
     for map_name in &seq_maps {
         if let Ok(count) = cleanup_by_timestamp(bpf_state, map_name, threshold_ns) {
             total += count;
         }
     }
     
-    // Pulisci tutte le mappe ack
     for map_name in &ack_maps {
         if let Ok(count) = cleanup_by_timestamp(bpf_state, map_name, threshold_ns) {
             total += count;

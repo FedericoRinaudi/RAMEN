@@ -1,1 +1,1 @@
-// seq_translation è stato spostato in shared/models/seq_translation.rs
+// seq_translation was moved to eBPF/user/src/models/seq_translation.rs

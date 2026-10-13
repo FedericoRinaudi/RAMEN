@@ -9,10 +9,7 @@
 #include "checksum.h"
 #include "skb_mark.h"
 
-/* Maximum   for flow tracking and seq_num translations */
 #define MAX_FLOWS 100000
-
-
 
 struct map_key {
     struct flow_info flow;
@@ -23,10 +20,9 @@ struct map_value {
     __u32 translated_seq;
     __u32 prev_seq;
     __u64 timestamp_ns;
-    __u8 is_fin_ack;  // 1 se questo ACK conferma un FIN, 0 altrimenti
+    __u8 is_fin_ack;
 };
 
-/* Macro per definire mappe BPF hash */
 #define DEFINE_TRANSLATION_HASH_MAP(map_name) \
     struct { \
         __uint(type, BPF_MAP_TYPE_HASH); \
@@ -35,7 +31,6 @@ struct map_value {
         __uint(max_entries, MAX_FLOWS); \
     } map_name SEC(".maps");
 
-/* Macro per definire code BPF per cleanup */
 #define DEFINE_CLEANUP_QUEUE(map_name) \
     struct { \
         __uint(type, BPF_MAP_TYPE_QUEUE); \
@@ -43,41 +38,29 @@ struct map_value {
         __uint(max_entries, 4096); \
     } map_name SEC(".maps");
 
-/* Definizione delle mappe hash usando la macro */
 DEFINE_TRANSLATION_HASH_MAP(host_to_network_seq_map);
 DEFINE_TRANSLATION_HASH_MAP(network_to_host_seq_map);
 DEFINE_TRANSLATION_HASH_MAP(host_to_network_ack_map);
 DEFINE_TRANSLATION_HASH_MAP(network_to_host_ack_map);
 
-/* Code per segnalare i flussi completati (FIN) da pulire */
 DEFINE_CLEANUP_QUEUE(completed_flow_ingress);
 DEFINE_CLEANUP_QUEUE(completed_flow_egress);
 
 
 
 
-/* ============================================================================
- * Sequence Number Translation Functions
- * ============================================================================ */
-
-/**
- * Offload cleanup to userspace by pushing a key to the cleanup queue
- */
 static __always_inline void offload_cleanup_to_user_space(void* queue_map, struct flow_info *flow, __u32 seq_num) {
     struct map_key key;
     key.flow = *flow;
     key.seq = seq_num;
     
-    // Push the key to the queue (BPF_EXIST: only if there's space)
+    // Push the key to the queue (BPF_EXIST: if the queue is full, the oldest element is overwritten)
     if (bpf_map_push_elem(queue_map, &key, BPF_EXIST) < 0) {
         debug_print("[SEQ_TRANS] Failed to push key to cleanup queue (queue full?)");
     }
 }
 
-/**
- * Initialize flow translation maps for SYN packet
- * Both original and translated seq_num are the same at handshake
- */
+/* Both original and translated seq_num are the same at handshake */
 static __always_inline __u8 init_translation_map(void* map, struct flow_info *flow, __u32 seq_num) {
     struct map_key key;
     key.flow = *flow;
@@ -97,10 +80,6 @@ static __always_inline __u8 init_translation_map(void* map, struct flow_info *fl
     return 1;
 }
 
-/**
- * Lookup seq_num translation for a flow
- * Returns pointer to seq_translation struct, or NULL if not found
- */
 static __always_inline struct map_value * lookup_translation_map(void *map, struct flow_info *flow, __u32 seq_num) {
     struct map_key key;
     key.flow = *flow;
@@ -108,7 +87,7 @@ static __always_inline struct map_value * lookup_translation_map(void *map, stru
     return bpf_map_lookup_elem(map, &key);
 }
 
-static __always_inline __u8 seq_num_map_translation_init(struct __sk_buff *skb, void* seq_num_map, void* ack_map, __u64 redirect_flags) { // da chiamare sia in ingress che in egress
+static __always_inline __u8 seq_num_map_translation_init(struct __sk_buff *skb, void* seq_num_map, void* ack_map, __u64 redirect_flags) {
     __u8 flag, ip_header_len;
     __u8 result = extract_ip_header_len(skb, &ip_header_len);
     __u32 seq_num;
@@ -158,7 +137,6 @@ static __always_inline __u8 seq_num_map_translation_init(struct __sk_buff *skb, 
 static __always_inline __u8 translate_seq_num(struct __sk_buff *skb, void* seq_num_map, __u32 input_seq_num, struct flow_info *flow, __u32 *output_seq_num, __u8 ip_header_len) {
     struct map_value *translation = lookup_translation_map(seq_num_map, flow, input_seq_num);
     if (!translation) {
-        //bpf_printk("[SEQ_TRANS] No translation found for seq_num=%u", input_seq_num);
         debug_print("[SEQ_TRANS] No translation found for seq_num=%u", input_seq_num);
         return TC_ACT_SHOT;
     }
@@ -180,8 +158,8 @@ static __always_inline __u8 insert_new_seq(void* seq_num_map, void* ack_map_reve
     key.flow = *flow;
     key.seq = input_seq_num + input_payload_len;
 
-    // Controlla se esiste già un'entry per questa chiave (seq_num)
-    // Se sì, preserva la catena usando il prev_seq dell'entry esistente
+    // Check whether an entry already exists for this key (seq_num)
+    // If so, preserve the chain by reusing the existing entry's prev_seq
     struct map_value *existing_seq = bpf_map_lookup_elem(seq_num_map, &key);
     
     struct map_value value;
@@ -190,10 +168,9 @@ static __always_inline __u8 insert_new_seq(void* seq_num_map, void* ack_map_reve
     value.is_fin_ack = 0;
     
     if (existing_seq != NULL) {
-        // Preserva la catena: il prev della nuova entry diventa il prev della vecchia
+        // Preserve the chain: the new entry's prev becomes the old entry's prev
         value.prev_seq = existing_seq->prev_seq;
     } else {
-        // Nuova entry: prev_seq è il seq corrente
         value.prev_seq = input_seq_num;
     }
 
@@ -208,8 +185,8 @@ static __always_inline __u8 insert_new_seq(void* seq_num_map, void* ack_map_reve
 
     value.translated_seq = input_seq_num + input_payload_len;
     value.timestamp_ns = bpf_ktime_get_ns();
-    value.is_fin_ack = is_fin;  // Marca l'ACK come FIN-ACK se questo è un FIN
-    value.prev_seq = 0;  // Non serve più la chain per gli ACK
+    value.is_fin_ack = is_fin;
+    value.prev_seq = 0;  // ACKs no longer need the chain
 
     if (bpf_map_update_elem(ack_map_reverse, &key, &value, BPF_ANY) < 0) {
         debug_print("[SEQ_TRANS] Failed to insert new ack_num");
@@ -227,8 +204,8 @@ static __always_inline __u8 manage_ack(struct __sk_buff *skb, void* ack_map, voi
         return TC_ACT_SHOT;
     }
 
-    // Se questo ACK conferma un FIN, segnala per pulizia di tutte le mappe
-    // Inseriamo il translated_seq con il flow invertito
+    // If this ACK acknowledges a FIN, signal that all maps must be cleaned up
+    // The translated_seq is pushed with the reversed flow
     if (translation->is_fin_ack == 1) {
         struct flow_info reversed_flow = flow;
         reverse_flow(&reversed_flow);
@@ -236,7 +213,6 @@ static __always_inline __u8 manage_ack(struct __sk_buff *skb, void* ack_map, voi
     }
 
     debug_print("[SEQ_TRANS] Translating ack_num: %u -> %u", input_ack_num, translation->translated_seq);
-   // Replace ack_num in packet
     if (replace_ack_num(skb, ip_header_len, translation->translated_seq) < 0) {
         debug_print("[SEQ_TRANS] Failed to replace ack_num");
         return TC_ACT_SHOT;
@@ -258,7 +234,6 @@ static __always_inline __u8 manage_seq_and_ack(struct __sk_buff *skb, void* seq_
     result = extract_flow_info(skb, ip_header_len, &flow);
     if(result != 1)
         return result;
-    //bpf_printk("IP header length: %u, TCP header length: %u, IP total length: %u", ip_header_len, tcp_header_len, input_ip_len);
     result = extract_seq_num(skb, ip_header_len, &input_seq_num);
     if(result != 1)
         return result;
@@ -269,7 +244,6 @@ static __always_inline __u8 manage_seq_and_ack(struct __sk_buff *skb, void* seq_
     input_payload_len = input_ip_len - (ip_header_len + tcp_header_len);
     translated_payload_len = skb->len - (ip_header_len + tcp_header_len + sizeof(struct ethhdr));
     
-    // Translate seq_num
     result = translate_seq_num(skb, seq_num_map, input_seq_num, &flow, &translated_seq_num, ip_header_len);
     if (result != 1) {
         return result;
@@ -300,7 +274,7 @@ static __always_inline __u8 manage_seq_and_ack(struct __sk_buff *skb, void* seq_
     }
 
     if (has_ack_flag(tcp_flags) == 0) {
-        return 1; // No ACK flag, nothing more to do
+        return 1;
     }
     __u32 input_ack_num;
     result = extract_ack_num(skb, ip_header_len, &input_ack_num);

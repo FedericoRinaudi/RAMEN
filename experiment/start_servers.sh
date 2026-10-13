@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Lancia i 4 server degli esperimenti e li termina tutti alla chiusura.
-# Uso: ./start_servers.sh [--http]
-#   --http  avvia i server in modalità plain TCP
+# Starts the 4 experiment servers and stops them all on exit.
+# Usage: ./start_servers.sh [--http]
+#   --http  start the servers in plain TCP mode
 
 QUERY_SERVER_BIN="/home/ubuntu/RAMEN/experiment/server/target/release/query-server"
 RESOLUTION_SERVER_BIN="/home/ubuntu/RAMEN/experiment/server/target/release/resolution-server"
@@ -21,53 +21,51 @@ PIDS=()
 
 cleanup() {
     echo ""
-    echo "Interruzione ricevuta, termino tutti i server..."
+    echo "Interrupt received, stopping all servers..."
     for pid in "${PIDS[@]}"; do
         kill "$pid" 2>/dev/null || true
     done
     wait "${PIDS[@]}" 2>/dev/null || true
-    echo "Tutti i server terminati."
+    echo "All servers stopped."
     exit 0
 }
 
 trap cleanup SIGINT SIGTERM
 
-echo "==================================="
-echo "Avvio server esperimenti"
+echo "Starting experiment servers"
 if [ -n "$HTTP_FLAG" ]; then
-    echo "Modalità: HTTP (plain TCP)"
+    echo "Mode: HTTP (plain TCP)"
 else
-    echo "Modalità: HTTPS (TLS)"
+    echo "Mode: HTTPS (TLS)"
 fi
-echo "==================================="
 echo ""
 
 "$QUERY_SERVER_BIN"      "$PORT_QUERY"            $HTTP_FLAG &
 PIDS+=($!)
-echo "  [PID $!] query-server       → :$PORT_QUERY      (con difesa)"
+echo "  [PID $!] query-server       :$PORT_QUERY      (defended)"
 
 "$RESOLUTION_SERVER_BIN" "$PORT_RESOLUTION"       $HTTP_FLAG &
 PIDS+=($!)
-echo "  [PID $!] resolution-server  → :$PORT_RESOLUTION    (con difesa)"
+echo "  [PID $!] resolution-server  :$PORT_RESOLUTION    (defended)"
 
 "$QUERY_SERVER_BIN"      "$PORT_QUERY_NODEF"      $HTTP_FLAG &
 PIDS+=($!)
-echo "  [PID $!] query-server       → :$PORT_QUERY_NODEF    (no_def)"
+echo "  [PID $!] query-server       :$PORT_QUERY_NODEF    (no_def)"
 
 "$RESOLUTION_SERVER_BIN" "$PORT_RESOLUTION_NODEF" $HTTP_FLAG &
 PIDS+=($!)
-echo "  [PID $!] resolution-server  → :$PORT_RESOLUTION_NODEF  (no_def)"
+echo "  [PID $!] resolution-server  :$PORT_RESOLUTION_NODEF  (no_def)"
 
 echo ""
-echo "Tutti i server attivi. Ctrl+C per fermarli."
+echo "All servers running. Ctrl+C to stop them."
 echo ""
 
-# Se uno dei server crasha, termina anche gli altri
+# If one server crashes, stop the others too
 wait_any() {
     while true; do
         for pid in "${PIDS[@]}"; do
             if ! kill -0 "$pid" 2>/dev/null; then
-                echo "Server PID $pid terminato inaspettatamente."
+                echo "Server PID $pid exited unexpectedly."
                 cleanup
             fi
         done

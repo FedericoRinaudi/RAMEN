@@ -16,14 +16,11 @@ pub struct BpfLoader {
 }
 
 impl BpfLoader {
-    /// Esegue il caricamento e l'attivazione dei programmi eBPF
     pub fn run(ifname: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let ifindex = nix::net::if_::if_nametoindex(ifname)? as i32;
-        // Open and load the skeleton
         let open_obj_box = Box::leak(Box::new(std::mem::MaybeUninit::<libbpf_rs::OpenObject>::uninit()));
         let skel = RAMENSkelBuilder::default().open(open_obj_box)?.load()?;
         
-        // Attach ingress program manually using TC hook
         let mut ingress_hook = TcHookBuilder::new(skel.progs.handle_ingress.as_fd())
             .ifindex(ifindex)
             .replace(true)
@@ -34,7 +31,6 @@ impl BpfLoader {
         ingress_hook.create()?;
         ingress_hook.attach()?;
         
-        // Attach egress program manually using TC hook
         let mut egress_hook = TcHookBuilder::new(skel.progs.handle_egress.as_fd())
             .ifindex(ifindex)
             .replace(true)
@@ -45,25 +41,22 @@ impl BpfLoader {
         egress_hook.create()?;
         egress_hook.attach()?;
         
-        println!("Programmi eBPF attaccati correttamente a {}", ifname);
+        println!("eBPF programs attached to {}", ifname);
         
         Ok(BpfLoader { skel, ifindex })
     }
     
-    /// Ottiene un manager per gestire le operazioni sulle mappe eBPF
     pub fn maps(&mut self) -> BpfMapManager<'_> {
-        // Convert from skeleton to the underlying libbpf_rs::Object
         BpfMapManager::new(self.skel.object_mut())
     }
     
-    /// Conta le entry in una mappa (solo lettura)
     pub fn count_map_entries(&self, map_name: &str) -> Result<usize, Box<dyn std::error::Error>> {
         use std::os::fd::AsRawFd;
         
         let map = self.skel.object()
             .maps()
             .find(|m| m.name().to_string_lossy() == map_name)
-            .ok_or_else(|| format!("Mappa '{}' non trovata", map_name))?;
+            .ok_or_else(|| format!("Map '{}' not found", map_name))?;
         
         let key_size = map.key_size() as usize;
         let mut count = 0;
@@ -90,14 +83,13 @@ impl BpfLoader {
         Ok(count)
     }
     
-    /// Legge tutte le chiavi di una mappa (solo lettura)
     pub fn read_map_keys(&self, map_name: &str) -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {
         use std::os::fd::AsRawFd;
         
         let map = self.skel.object()
             .maps()
             .find(|m| m.name().to_string_lossy() == map_name)
-            .ok_or_else(|| format!("Mappa '{}' non trovata", map_name))?;
+            .ok_or_else(|| format!("Map '{}' not found", map_name))?;
         
         let key_size = map.key_size() as usize;
         let mut keys = Vec::new();
@@ -124,17 +116,15 @@ impl BpfLoader {
         Ok(keys)
     }
     
-    /// Legge un valore da una mappa (solo lettura)
     pub fn read_map_value(&self, map_name: &str, key: &[u8]) -> Result<Option<Vec<u8>>, Box<dyn std::error::Error>> {
         let map = self.skel.object()
             .maps()
             .find(|m| m.name().to_string_lossy() == map_name)
-            .ok_or_else(|| format!("Mappa '{}' non trovata", map_name))?;
+            .ok_or_else(|| format!("Map '{}' not found", map_name))?;
         
         Ok(map.lookup(key, libbpf_rs::MapFlags::ANY)?)
     }
     
-    /// Detach un programma TC ingress
     pub fn detach_ingress<F: AsFd>(&self, prog_fd: &F) -> Result<(), Box<dyn std::error::Error>> {
         let mut hook = TcHookBuilder::new(prog_fd.as_fd())
             .ifindex(self.ifindex)
@@ -148,7 +138,6 @@ impl BpfLoader {
         Ok(())
     }
     
-    /// Detach un programma TC egress
     pub fn detach_egress<F: AsFd>(&self, prog_fd: &F) -> Result<(), Box<dyn std::error::Error>> {
         let mut hook = TcHookBuilder::new(prog_fd.as_fd())
             .ifindex(self.ifindex)
@@ -162,10 +151,6 @@ impl BpfLoader {
         Ok(())
     }
     
-    /// Carica una configurazione nella mappa eBPF client_config_map
-    /// 
-    /// # Parametri
-    /// - `config`: Configurazione BPF contenente tutti i parametri necessari
     pub fn load_config(
         &mut self,
         config: &crate::models::BpfConfig,
@@ -196,14 +181,12 @@ impl BpfLoader {
         Ok(())
     }
     
-    /// Rimuove una configurazione dalla mappa eBPF client_config_map
     pub fn remove_config(&mut self, ip: u32, port: u16) -> Result<(), Box<dyn std::error::Error>> {
         let key = ClientConfigKey::new(ip, port);
         self.maps().delete("client_config_map", key.as_bytes())?;
         Ok(())
     }
     
-    /// Pulisce le configurazioni scadute dalla mappa eBPF client_config_map
     pub fn cleanup_expired_configs(&mut self) -> Result<usize, Box<dyn std::error::Error>> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)?

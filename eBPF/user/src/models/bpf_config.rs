@@ -1,42 +1,31 @@
-/// Struttura per raggruppare i parametri di configurazione BPF
 #[derive(Debug, Clone)]
 pub struct BpfConfig {
-    /// Chiave per il padding (32 byte)
+    /// Padding key (32 bytes)
     pub padding_key: Vec<u8>,
 
-    /// Chiave per i pacchetti dummy (32 byte)
+    /// Dummy packet key (32 bytes)
     pub dummy_key: Vec<u8>,
 
-    /// Durata validità configurazione in secondi
     pub duration_seconds: u64,
 
-    /// Indirizzo IP del client
     pub client_ip: std::net::IpAddr,
 
-    /// Porta del server
     pub server_port: u16,
 
-    /// Probabilità minima di padding (0-100)
     pub padding_prob_min: u8,
 
-    /// Probabilità massima di padding (0-100)
     pub padding_prob_max: u8,
 
-    /// Probabilità minima di dummy packets (0-100)
     pub dummy_prob_min: u8,
 
-    /// Probabilità massima di dummy packets (0-100)
     pub dummy_prob_max: u8,
 
-    /// Probabilità minima di frammentazione (0-100)
     pub frag_prob_min: u8,
 
-    /// Probabilità massima di frammentazione (0-100)
     pub frag_prob_max: u8,
 }
 
 impl BpfConfig {
-    /// Crea una nuova configurazione BPF
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         padding_key: Vec<u8>,
@@ -66,15 +55,14 @@ impl BpfConfig {
         }
     }
 
-    /// Ottiene l'IP come u32 (solo IPv4)
+    /// Returns the IP as u32 (IPv4 only)
     pub fn ip_as_u32(&self) -> Result<u32, &'static str> {
         match self.client_ip {
             std::net::IpAddr::V4(ipv4) => Ok(u32::from_be_bytes(ipv4.octets())),
-            std::net::IpAddr::V6(_) => Err("Solo IPv4 supportato"),
+            std::net::IpAddr::V6(_) => Err("Only IPv4 is supported"),
         }
     }
 
-    /// Calcola il timestamp di scadenza
     pub fn calculate_expiration(&self) -> Result<u64, Box<dyn std::error::Error>> {
         use std::time::{SystemTime, UNIX_EPOCH};
 

@@ -8,7 +8,7 @@ const SOCKET_PATH: &str = "/tmp/RAMEN_client.sock";
 
 pub async fn send_command_to_daemon(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let command = args.get(1)
-        .ok_or("Specificare un comando")?;
+        .ok_or("Specify a command")?;
     
     match command.as_str() {
         "add" => handle_add(&args[2..]).await,
@@ -21,14 +21,14 @@ pub async fn send_command_to_daemon(args: Vec<String>) -> Result<(), Box<dyn std
         "set-cleanup" => handle_set_cleanup(&args[2..]).await,
         _ => {
             print_usage();
-            Err("Comando non valido".into())
+            Err("Invalid command".into())
         }
     }
 }
 
 async fn send_command(command: DaemonCommand) -> Result<DaemonResponse, Box<dyn std::error::Error>> {
     let mut stream = UnixStream::connect(SOCKET_PATH).await
-        .map_err(|_| "Impossibile connettersi al daemon. È in esecuzione?")?;
+        .map_err(|_| "Cannot connect to the daemon. Is it running?")?;
     
     let command_json = serde_json::to_vec(&command)?;
     stream.write_all(&command_json).await?;
@@ -41,22 +41,21 @@ async fn send_command(command: DaemonCommand) -> Result<DaemonResponse, Box<dyn 
 }
 
 fn print_usage() {
-    println!("Uso:");
-    println!("  RAMEN-client                                           - Avvia il daemon (config: /etc/RAMEN/config.yaml)");
-    println!("  RAMEN-client list                                      - Elenca i server configurati");
-    println!("  RAMEN-client status                                    - Mostra lo stato del daemon");
+    println!("Usage:");
+    println!("  RAMEN-client                                           - Start the daemon (config: /etc/RAMEN/config.yaml)");
+    println!("  RAMEN-client list                                      - List the configured servers");
+    println!("  RAMEN-client status                                    - Show the daemon status");
     println!("  RAMEN-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
-    println!("                                                          - Aggiungi un nuovo server");
-    println!("  RAMEN-client update <name> <campo> <valore>            - Aggiorna un campo del server");
+    println!("                                                          - Add a new server");
+    println!("  RAMEN-client update <name> <field> <value>             - Update a server field");
     println!("  RAMEN-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
-    println!("                                                          - Aggiorna tutte le probabilità in una sola chiamata");
-    println!("  RAMEN-client renew <name>                              - Rigenera le chiavi per un server");
+    println!("                                                          - Update all probabilities in a single call");
+    println!("  RAMEN-client renew <name>                              - Regenerate the keys for a server");
     println!("  RAMEN-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
-    println!("                                                          - Modifica parametri di cleanup delle mappe");
-    println!("  RAMEN-client shutdown                                  - Arresta il daemon");
+    println!("                                                          - Change the map cleanup parameters");
+    println!("  RAMEN-client shutdown                                  - Stop the daemon");
     println!();
-    println!("Campi aggiornabili:");
-    println!("  server_ip, http_port, service_port, endpoint, duration_seconds,");
+    println!("Updatable fields:");
     println!("  server_ip, http_port, service_port, endpoint, duration_seconds,
   padding_prob_min, padding_prob_max, dummy_prob_min, dummy_prob_max,
   frag_prob_min, frag_prob_max");
@@ -67,20 +66,20 @@ async fn handle_status() -> Result<(), Box<dyn std::error::Error>> {
     
     match response {
         DaemonResponse::Status(status) => {
-            println!("=== Stato Daemon ===\n");
-            println!("Interfaccia: {}", status.interface);
-            println!("Intervallo controllo: {}s", status.check_interval_seconds);
-            println!("Server configurati: {}", status.servers_count);
+            println!("Daemon Status\n");
+            println!("Interface: {}", status.interface);
+            println!("Check interval: {}s", status.check_interval_seconds);
+            println!("Configured servers: {}", status.servers_count);
             println!("Uptime: {}s", status.uptime_seconds);
             println!();
-            println!("=== Parametri Cleanup Mappe ===\n");
-            println!("Intervallo cleanup: {}s", status.translation_cleanup_interval_seconds);
-            println!("Soglia CPU: {}%", status.cpu_threshold);
-            println!("Threshold timestamp: {}s", status.timestamp_threshold_seconds);
-            println!("Cleanup forzato ogni: {} iterazioni", status.force_cleanup_every);
+            println!("Map Cleanup Parameters\n");
+            println!("Cleanup interval: {}s", status.translation_cleanup_interval_seconds);
+            println!("CPU threshold: {}%", status.cpu_threshold);
+            println!("Timestamp threshold: {}s", status.timestamp_threshold_seconds);
+            println!("Forced cleanup every: {} iterations", status.force_cleanup_every);
         }
-        DaemonResponse::Error(e) => eprintln!("Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
     
     Ok(())
@@ -91,8 +90,8 @@ async fn handle_shutdown() -> Result<(), Box<dyn std::error::Error>> {
     
     match response {
         DaemonResponse::Success(msg) => println!("{}", msg),
-        DaemonResponse::Error(e) => eprintln!("Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
     
     Ok(())
@@ -103,7 +102,7 @@ async fn handle_list() -> Result<(), Box<dyn std::error::Error>> {
     
     match response {
         DaemonResponse::ServerList(servers) => {
-            println!("=== Server Configurati ===\n");
+            println!("Configured Servers\n");
             
             for (i, server) in servers.iter().enumerate() {
                 println!("{}. {}", i + 1, server.name);
@@ -115,12 +114,12 @@ async fn handle_list() -> Result<(), Box<dyn std::error::Error>> {
                 println!("   Padding:  {}%–{}%", server.padding_prob_min, server.padding_prob_max);
                 println!("   Dummy:    {}%–{}%", server.dummy_prob_min, server.dummy_prob_max);
                 println!("   Frag:     {}%–{}%", server.frag_prob_min, server.frag_prob_max);
-                println!("   Ultimo invio: {} (scade: {})", server.inserted_at, server.expires_at);
+                println!("   Last sent: {} (expires: {})", server.inserted_at, server.expires_at);
                 println!();
             }
         }
-        DaemonResponse::Error(e) => eprintln!("Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
     
     Ok(())
@@ -128,8 +127,8 @@ async fn handle_list() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 4 {
-        println!("Uso: RAMEN-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
-        return Err("Argomenti insufficienti".into());
+        println!("Usage: RAMEN-client add <name> <ip> <http_port> <service_port> [duration] [endpoint] [pad_min] [pad_max] [dummy_min] [dummy_max] [frag_min] [frag_max]");
+        return Err("Not enough arguments".into());
     }
     
     let name = args[0].clone();
@@ -161,14 +160,14 @@ async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         frag_prob_max,
     };
     
-    println!("Aggiunta del server '{}'...", name);
+    println!("Adding server '{}'...", name);
     
     let response = send_command(DaemonCommand::Add(new_server)).await?;
     
     match response {
-        DaemonResponse::Success(msg) => println!("✓ {}", msg),
-        DaemonResponse::Error(e) => eprintln!("✗ Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        DaemonResponse::Success(msg) => println!("{}", msg),
+        DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
     
     Ok(())
@@ -176,8 +175,8 @@ async fn handle_add(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
 async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 7 {
-        println!("Uso: RAMEN-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
-        return Err("Argomenti insufficienti".into());
+        println!("Usage: RAMEN-client update-probs <name> <p_min> <p_max> <d_min> <d_max> <f_min> <f_max>");
+        return Err("Not enough arguments".into());
     }
 
     let name                = args[0].clone();
@@ -196,9 +195,9 @@ async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::
     }).await?;
 
     match response {
-        crate::ipc::DaemonResponse::Success(msg) => println!("✓ {}", msg),
-        crate::ipc::DaemonResponse::Error(e) => eprintln!("✗ Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        crate::ipc::DaemonResponse::Success(msg) => println!("{}", msg),
+        crate::ipc::DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
 
     Ok(())
@@ -206,22 +205,22 @@ async fn handle_update_probs(args: &[String]) -> Result<(), Box<dyn std::error::
 
 async fn handle_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.len() < 3 {
-        println!("Uso: RAMEN-client update <name> <campo> <valore>");
-        return Err("Argomenti insufficienti".into());
+        println!("Usage: RAMEN-client update <name> <field> <value>");
+        return Err("Not enough arguments".into());
     }
     
     let name = args[0].clone();
     let field = args[1].clone();
     let value = args[2].clone();
     
-    println!("Aggiornamento del server '{}'...", name);
+    println!("Updating server '{}'...", name);
     
     let response = send_command(DaemonCommand::Update { name, field: field.clone(), value }).await?;
     
     match response {
-        DaemonResponse::Success(msg) => println!("✓ {}", msg),
-        DaemonResponse::Error(e) => eprintln!("✗ Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        DaemonResponse::Success(msg) => println!("{}", msg),
+        DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
     
     Ok(())
@@ -229,20 +228,20 @@ async fn handle_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>
 
 async fn handle_renew(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
-        println!("Uso: RAMEN-client renew <name>");
-        return Err("Specificare il nome del server".into());
+        println!("Usage: RAMEN-client renew <name>");
+        return Err("Specify the server name".into());
     }
     
     let name = args[0].clone();
     
-    println!("Rigenerazione chiavi per il server '{}'...", name);
+    println!("Regenerating keys for server '{}'...", name);
     
     let response = send_command(DaemonCommand::Renew { name }).await?;
     
     match response {
-        DaemonResponse::Success(msg) => println!("✓ {}", msg),
-        DaemonResponse::Error(e) => eprintln!("✗ Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        DaemonResponse::Success(msg) => println!("{}", msg),
+        DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
     
     Ok(())
@@ -250,13 +249,13 @@ async fn handle_renew(args: &[String]) -> Result<(), Box<dyn std::error::Error>>
 
 async fn handle_set_cleanup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     if args.is_empty() {
-        println!("Uso: RAMEN-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
+        println!("Usage: RAMEN-client set-cleanup [--interval <sec>] [--cpu <threshold>] [--timestamp <sec>] [--force <n>]");
         println!();
-        println!("Esempi:");
+        println!("Examples:");
         println!("  RAMEN-client set-cleanup --interval 10");
         println!("  RAMEN-client set-cleanup --cpu 10.0 --timestamp 120");
         println!("  RAMEN-client set-cleanup --force 30");
-        return Err("Specificare almeno un parametro".into());
+        return Err("Specify at least one parameter".into());
     }
     
     let mut interval = None;
@@ -291,12 +290,12 @@ async fn handle_set_cleanup(args: &[String]) -> Result<(), Box<dyn std::error::E
                     force_cleanup_every = Some(args[i].parse()?);
                 }
             }
-            _ => return Err(format!("Parametro sconosciuto: {}", args[i]).into()),
+            _ => return Err(format!("Unknown parameter: {}", args[i]).into()),
         }
         i += 1;
     }
     
-    println!("Aggiornamento parametri di cleanup...");
+    println!("Updating cleanup parameters...");
     
     let response = send_command(DaemonCommand::SetCleanupParams {
         interval,
@@ -306,9 +305,9 @@ async fn handle_set_cleanup(args: &[String]) -> Result<(), Box<dyn std::error::E
     }).await?;
     
     match response {
-        DaemonResponse::Success(msg) => println!("✓ {}", msg),
-        DaemonResponse::Error(e) => eprintln!("✗ Errore: {}", e),
-        _ => eprintln!("Risposta inattesa dal daemon"),
+        DaemonResponse::Success(msg) => println!("{}", msg),
+        DaemonResponse::Error(e) => eprintln!("Error: {}", e),
+        _ => eprintln!("Unexpected response from the daemon"),
     }
     
     Ok(())

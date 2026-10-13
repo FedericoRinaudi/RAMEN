@@ -3,11 +3,9 @@ use std::sync::Arc;
 use crate::BpfState;
 use user::models::BpfConfig;
 
-/// Servizio per gestire l'inserimento della configurazione client nella mappa BPF
 pub struct ClientConfigService;
 
 impl ClientConfigService {
-    /// Inserisce la configurazione nella mappa BPF per un determinato IP e porta server
     pub fn insert_config(
         bpf_state: &Arc<BpfState>,
         config: BpfConfig,
@@ -16,7 +14,6 @@ impl ClientConfigService {
         let client_ip = config.client_ip;
         let server_port = config.server_port;
         
-        // Inserisci nella mappa BPF usando il metodo di BpfLoader
         let mut loader = bpf_state.loader.lock().unwrap();
         loader.load_config(&config)?;
         

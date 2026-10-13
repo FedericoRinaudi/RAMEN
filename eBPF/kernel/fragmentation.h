@@ -11,12 +11,10 @@
 #include "skb_mark.h"
 #include "client_config.h"
 
-/* Clone fragment to packet - moves fragment data to the beginning of the packet */
 static __always_inline __u8 fragmentation_clone_to_packet_internal(struct __sk_buff *skb) {
-    /* Extract fragment info from skb->mark */
     __u16 payload_len = skb_mark_get_len(skb);
     if(payload_len == 0) {
-        return TC_ACT_SHOT; // Nothing to do
+        return TC_ACT_SHOT;
     }
 
     __u16 old_ip_len, new_ip_len;
@@ -54,10 +52,9 @@ static __always_inline __u8 fragmentation_clone_to_packet_internal(struct __sk_b
         return TC_ACT_SHOT;
     }
 
-    /* Clear len and set checksum_flag (packet modified) */
     skb_mark_set_len(skb, 0);
         
-    return 1; // Signal to continue with fragmentation
+    return 1;
 }
 
 
@@ -76,29 +73,25 @@ static __always_inline __u8 fragment_packet_internal(struct __sk_buff *skb) {
     
     if(payload_len < 64 || skb_mark_get_redirect_count(skb) > 3) {
         debug_print("[FRAGMENT] Skip: payload too small (%u bytes) or too many redirects (%u)", payload_len, skb_mark_get_redirect_count(skb));
-        return 1; // No fragmentation for small payloads or too many redirects
+        return 1;
     }
 
-    // Get fragmentation probability for this IP and port
     struct client_config *config = get_client_config_egress(skb, ip_header_len);
     if (!config) {
         return -1;
     }
     
-    // Check if we should fragment
     if ((bpf_get_prandom_u32() % 100) > config->frag_probability) {
         debug_print("[FRAGMENT] Skip: probability check (payload=%u bytes)", payload_len);
-        return 1; // No fragmentation for small payloads
+        return 1;
     }
     
-    // fino a qui
     // Calculate new fragment size (minimum 32 bytes)
-    u16 frag_payload_len = (bpf_get_prandom_u32() % (payload_len - 32)) + 32; // size of the fragment payload
+    u16 frag_payload_len = (bpf_get_prandom_u32() % (payload_len - 32)) + 32;
     payload_len -= frag_payload_len;
     
     debug_print("[FRAGMENT] Fragmenting packet: segment1=%u bytes, segment2=%u bytes", frag_payload_len, payload_len);
     
-    // Increment redirect count and store fragment info in mark
     skb_mark_increment_redirect_count(skb);
     skb_mark_set_len(skb, frag_payload_len);
     skb_mark_set_type(skb, SKB_MARK_TYPE_FRAGMENT_CLONE);
@@ -108,7 +101,7 @@ static __always_inline __u8 fragment_packet_internal(struct __sk_buff *skb) {
         return TC_ACT_SHOT;
     }
 
-    skb_mark_set_len(skb, 0);  // Clear frag payload, keep other fields
+    skb_mark_set_len(skb, 0);
     debug_print("[FRAGMENT] Packet resized to %u bytes", tcp_payload_offset + payload_len);
 
     __u16 read_start_offset = tcp_payload_offset + frag_payload_len;

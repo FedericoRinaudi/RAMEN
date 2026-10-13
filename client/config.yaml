@@ -1,35 +1,27 @@
-# Configurazione del client RAMEN
-# Questo file viene letto periodicamente dal daemon
+# This file is re-read periodically by the daemon
 
-# Interfaccia di rete su cui caricare il programma eBPF
 interface: enp7s0
 
-# Intervallo di controllo in secondi (default: 60)
 check_interval_seconds: 120
 
-# Parametri per la pulizia delle mappe di traduzione
-translation_cleanup_interval_seconds: 5  # Intervallo di cleanup (default: 5)
-cpu_threshold: 5.0                       # Soglia CPU per cleanup aggressivo (default: 5.0)
-timestamp_threshold_seconds: 60          # Entry più vecchie di questo valore vengono eliminate (default: 60)
-force_cleanup_every: 20                  # Cleanup forzato ogni N iterazioni (default: 20)
+translation_cleanup_interval_seconds: 5
+cpu_threshold: 5.0
+timestamp_threshold_seconds: 60
+force_cleanup_every: 20
 
-# Lista dei server configurati
 servers:
-  # Primo server
   - name: server_query
     server_ip: 10.133.6.2
-    http_port: 8000        # Porta del servizio HTTP (per la richiesta)
-    service_port: 8080     # Porta del servizio RAMEN (chiave eBPF)
+    http_port: 8000
+    service_port: 8080     # RAMEN service port (eBPF key)
     endpoint: /config
     
-    # Timestamp dell'ultimo invio delle chiavi al server (ISO 8601)
-    # Le chiavi vengono generate al volo e non salvate
+    # Keys are generated on the fly and never saved
     last_sent_at: 2024-01-01T00:00:00Z
     
-    # Durata delle chiavi in secondi
-    duration_seconds: 86400000  # 24 ore
+    duration_seconds: 86400  # 24h
     
-    # Range probabilità (0-100): eBPF sceglie casualmente nell'intervallo ogni 3s
+    # Probability range (0-100): eBPF picks a random value in the range every 3s
     padding_prob_min: 0
     padding_prob_max: 100
     dummy_prob_min: 0
@@ -39,18 +31,16 @@ servers:
 
   - name: server_res
     server_ip: 10.133.6.2
-    http_port: 8000        # Porta del servizio HTTP (per la richiesta)
-    service_port: 8081     # Porta del servizio RAMEN (chiave eBPF)
+    http_port: 8000
+    service_port: 8081     # RAMEN service port (eBPF key)
     endpoint: /config
 
-    # Timestamp dell'ultimo invio delle chiavi al server (ISO 8601)
-    # Le chiavi vengono generate al volo e non salvate
+    # Keys are generated on the fly and never saved
     last_sent_at: 2024-01-01T00:00:00Z
 
-    # Durata delle chiavi in secondi
-    duration_seconds: 86400000  # 24 ore
+    duration_seconds: 86400  # 24h
 
-    # Range probabilità (0-100): eBPF sceglie casualmente nell'intervallo ogni 3s
+    # Probability range (0-100): eBPF picks a random value in the range every 3s
     padding_prob_min: 0
     padding_prob_max: 100
     dummy_prob_min: 0

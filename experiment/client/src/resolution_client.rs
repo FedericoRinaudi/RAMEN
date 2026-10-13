@@ -16,17 +16,17 @@ const DEFAULT_SERVER_ADDRESS: &str = "10.10.0.2:8081";
 // Wire invariant (TLS):
 //   send:    68 payload + 22 TLS + 54 net headers = 144 bytes wire
 //   receive: 189 payload + 22 TLS + 54 net headers = 265 bytes wire
-// Wire invariant (plain TCP, stessa dimensione wire):
+// Wire invariant (plain TCP, same wire size):
 //   send:    90 payload + 54 net headers = 144 bytes wire  (90 = 68 + 22)
 //   receive: 211 payload + 54 net headers = 265 bytes wire (211 = 189 + 22)
 const BYTES_TO_SEND_TLS: usize = 68;
 const BYTES_TO_RECEIVE_TLS: usize = 189;
-const BYTES_TO_SEND_PLAIN: usize = 90;   // 68 + 22 TLS overhead
-const BYTES_TO_RECEIVE_PLAIN: usize = 211; // 189 + 22 TLS overhead
+const BYTES_TO_SEND_PLAIN: usize = 90;
+const BYTES_TO_RECEIVE_PLAIN: usize = 211;
 const N_REQUESTS: usize = 100;
 const N_PARALLEL_PACKETS: usize = 20;
 
-// Accetta qualsiasi certificato (autofirmato) senza verifica
+// Accepts any (self-signed) certificate without verification
 #[derive(Debug)]
 struct NoVerifier;
 
@@ -95,9 +95,8 @@ fn set_tcp_quickack(stream: &TcpStream, enable: bool) {
     }
 }
 
-// Invia un singolo pacchetto e riceve la risposta.
-// In TLS mode: tls_config e server_name sono Some; il timer parte dopo l'handshake.
-// In plain TCP mode: entrambi None; payload aumentato per mantenere la stessa dimensione wire.
+// In TLS mode: tls_config and server_name are Some; the timer starts after the handshake.
+// In plain TCP mode: both are None; the payload is enlarged to keep the same wire size.
 fn send_and_receive_packet(
     server_address: &str,
     tls_config: Option<Arc<rustls::ClientConfig>>,
@@ -109,7 +108,6 @@ fn send_and_receive_packet(
 
     match (tls_config, server_name) {
         (Some(config), Some(name)) => {
-            // ── TLS path ──────────────────────────────────────────────────
             let conn = rustls::ClientConnection::new(config, name)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
             let mut tls = rustls::StreamOwned::new(conn, tcp);
@@ -135,7 +133,6 @@ fn send_and_receive_packet(
             Ok(duration)
         }
         _ => {
-            // ── Plain TCP path (payload aumentato per parificare la dimensione wire) ──
             let mut stream = tcp;
             let data = vec![0u8; BYTES_TO_SEND_PLAIN];
             let start = Instant::now();
@@ -157,12 +154,12 @@ fn send_and_receive_packet(
 async fn main() {
     rustls::crypto::ring::default_provider().install_default().ok();
 
-    // Uso: <output_file> [server_address] [n_requests] [--http]
+    // Usage: <output_file> [server_address] [n_requests] [--http]
     let args: Vec<String> = env::args().collect();
     let output_file = if args.len() > 1 {
         args[1].clone()
     } else {
-        eprintln!("Uso: {} <output_file> [server_address] [n_requests] [--http]", args[0]);
+        eprintln!("Usage: {} <output_file> [server_address] [n_requests] [--http]", args[0]);
         std::process::exit(1);
     };
 
@@ -175,15 +172,15 @@ async fn main() {
     let use_tls = !args.iter().any(|a| a == "--http");
 
     if use_tls {
-        println!("Connessione TLS a {}", server_address);
-        println!("Configurazione:");
-        println!("  - Bytes da inviare: {} (+ 22 TLS + 54 net = 144 wire)", BYTES_TO_SEND_TLS);
-        println!("  - Bytes da ricevere: {} (+ 22 TLS + 54 net = 265 wire)", BYTES_TO_RECEIVE_TLS);
+        println!("TLS connection to {}", server_address);
+        println!("Configuration:");
+        println!("  - Bytes to send: {} (+ 22 TLS + 54 net = 144 wire)", BYTES_TO_SEND_TLS);
+        println!("  - Bytes to receive: {} (+ 22 TLS + 54 net = 265 wire)", BYTES_TO_RECEIVE_TLS);
     } else {
-        println!("Connessione TCP (plain) a {}", server_address);
-        println!("Configurazione:");
-        println!("  - Bytes da inviare: {} (+ 54 net = 144 wire, stessa dimensione TLS)", BYTES_TO_SEND_PLAIN);
-        println!("  - Bytes da ricevere: {} (+ 54 net = 265 wire, stessa dimensione TLS)", BYTES_TO_RECEIVE_PLAIN);
+        println!("TCP (plain) connection to {}", server_address);
+        println!("Configuration:");
+        println!("  - Bytes to send: {} (+ 54 net = 144 wire, same size as TLS)", BYTES_TO_SEND_PLAIN);
+        println!("  - Bytes to receive: {} (+ 54 net = 265 wire, same size as TLS)", BYTES_TO_RECEIVE_PLAIN);
     }
 
     let n_requests = if args.len() > 3 {
@@ -194,8 +191,8 @@ async fn main() {
         N_REQUESTS
     };
 
-    println!("  - Numero totale richieste: {}", n_requests);
-    println!("  - Nuova connessione per ogni richiesta");
+    println!("  - Total requests: {}", n_requests);
+    println!("  - New connection for each request");
     println!("  - Output file: {}", output_file);
     println!();
 
@@ -234,11 +231,11 @@ async fn main() {
                     durations.push(duration);
                 }
                 Ok(Err(e)) => {
-                    eprintln!("Errore in un pacchetto: {}", e);
+                    eprintln!("Error in a packet: {}", e);
                     all_ok = false;
                 }
                 Err(e) => {
-                    eprintln!("Errore nel task: {}", e);
+                    eprintln!("Task error: {}", e);
                     all_ok = false;
                 }
             }
@@ -247,16 +244,16 @@ async fn main() {
         if all_ok && !durations.is_empty() {
             let max_duration = durations.iter().max().unwrap();
             rtts.push(max_duration.as_micros());
-            println!("Richiesta {}/{}: {} pacchetti paralleli completati, tempo massimo data transfer: {:.3} ms",
+            println!("Request {}/{}: {} parallel packets completed, max data transfer time: {:.3} ms",
                      i + 1, n_requests, N_PARALLEL_PACKETS, max_duration.as_secs_f64() * 1000.0);
         } else {
-            eprintln!("Richiesta {}/{}: alcuni pacchetti hanno fallito", i + 1, N_REQUESTS);
+            eprintln!("Request {}/{}: some packets failed", i + 1, N_REQUESTS);
         }
 
         tokio::time::sleep(Duration::from_millis(2)).await;
     }
 
-    println!("\nCompletate tutte le {} richieste", n_requests);
+    println!("\nCompleted all {} requests", n_requests);
 
     if !rtts.is_empty() {
         let sum: u128 = rtts.iter().sum();
@@ -264,8 +261,8 @@ async fn main() {
         let min = *rtts.iter().min().unwrap();
         let max = *rtts.iter().max().unwrap();
 
-        println!("\nStatistiche tempo data transfer:");
-        println!("  - Media: {:.3} ms", avg as f64 / 1000.0);
+        println!("\nData transfer time statistics:");
+        println!("  - Mean: {:.3} ms", avg as f64 / 1000.0);
         println!("  - Min: {:.3} ms", min as f64 / 1000.0);
         println!("  - Max: {:.3} ms", max as f64 / 1000.0);
 
@@ -279,10 +276,10 @@ async fn main() {
                 for rtt in rtts.iter() {
                     writeln!(file, "{}", rtt).ok();
                 }
-                println!("\n✓ Risultati salvati in: {}", output_file);
+                println!("\nResults saved to: {}", output_file);
             }
             Err(e) => {
-                eprintln!("✗ Errore nella scrittura del file: {}", e);
+                eprintln!("Error writing the file: {}", e);
             }
         }
     }

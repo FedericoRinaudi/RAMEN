@@ -6,7 +6,6 @@ use crate::models::MapKey;
 use super::monitoring::get_cpu_usage;
 use super::timestamp_cleanup::{BpfState, cleanup_all_maps_by_timestamp};
 
-/// Inverte il flusso in una chiave (swap di saddr/daddr e sport/dport)
 fn reverse_flow_in_key(mut key: MapKey) -> MapKey {
     let tmp_addr = key.flow.saddr;
     let tmp_port = key.flow.sport;
@@ -17,14 +16,14 @@ fn reverse_flow_in_key(mut key: MapKey) -> MapKey {
     key
 }
 
-/// Pulisce ricorsivamente le entry SEQ e le corrispondenti entry ACK
-/// Strategia:
-/// - Cerca nella mappa SEQ con flow e seq_num forniti
-/// - Per ogni entry trovata:
-///   1. Pulisce l'entry SEQ corrente
-///   2. Usa il translated_seq con flow invertito per trovare e pulire l'ACK corrispondente
-///   3. Continua ricorsivamente con prev_seq
-/// Nota: Le entry ACK non vengono più processate ricorsivamente (prev_seq=0)
+/// Recursively cleans up SEQ entries and the matching ACK entries
+/// Strategy:
+/// - Look up the SEQ map with the given flow and seq_num
+/// - For each entry found:
+///   1. Remove the current SEQ entry
+///   2. Use translated_seq with the reversed flow to find and remove the matching ACK
+///   3. Continue recursively with prev_seq
+/// Note: ACK entries are no longer processed recursively (prev_seq=0)
 fn cleanup_seq_recursive(
     bpf_state: &BpfState,
     seq_map_name: &str,
@@ -42,11 +41,9 @@ fn cleanup_seq_recursive(
         
         let key_bytes = key.to_bytes();
         
-        // Lookup nella mappa SEQ
         let value_bytes = match maps.lookup(seq_map_name, &key_bytes)? {
             Some(bytes) => bytes,
             None => {
-                // Entry non trovata, fine della ricorsione
                 drop(maps);
                 drop(loader);
                 break;
@@ -59,22 +56,18 @@ fn cleanup_seq_recursive(
         
         drop(maps);
         
-        // Elimina l'entry SEQ corrente
         let mut maps_mut = loader.maps();
         maps_mut.delete(seq_map_name, &key_bytes)?;
         seq_count += 1;
         drop(maps_mut);
         drop(loader);
         
-        // Pulisci l'ACK corrispondente: flow invertito + translated_seq
-        // Gli ACK hanno prev_seq=0, quindi non vengono processati ricorsivamente
         let mut ack_key = reverse_flow_in_key(key.clone());
         ack_key.seq = translated_seq;
         
         let mut loader = bpf_state.loader.lock().unwrap();
         let ack_key_bytes = ack_key.to_bytes();
         
-        // Verifica se esiste l'ACK entry e eliminala direttamente
         if let Ok(Some(_)) = loader.maps().lookup(ack_map_name, &ack_key_bytes) {
             drop(loader);
             let mut loader = bpf_state.loader.lock().unwrap();
@@ -89,23 +82,22 @@ fn cleanup_seq_recursive(
             drop(loader);
         }
         
-        // Se prev_seq è 0, abbiamo raggiunto l'inizio (SYN)
+        // prev_seq == 0 means we reached the start (SYN)
         if prev_seq == 0 {
             break;
         }
         
-        // Continua ricorsivamente con prev_seq
         key.seq = prev_seq;
     }
     
     Ok(seq_count + ack_count)
 }
 
-/// Processa una coda di flussi completati e pulisce ricorsivamente le mappe
-/// Strategia:
-/// - Pop dalla coda → otteniamo seq_num tradotto con flow già invertito
-/// - Cerchiamo direttamente nella mappa SEQ con questi dati
-/// - Puliamo ricorsivamente tutte le entry SEQ e le corrispondenti ACK
+/// Processes a queue of completed flows and recursively cleans up the maps
+/// Strategy:
+/// - Pop from the queue: yields the translated seq_num with the flow already reversed
+/// - Look up the SEQ map directly with these values
+/// - Recursively remove all SEQ entries and the matching ACK entries
 fn process_cleanup_queue(
     bpf_state: &BpfState,
     queue_name: &str,
@@ -119,26 +111,23 @@ fn process_cleanup_queue(
         let mut loader = bpf_state.loader.lock().unwrap();
         let maps = loader.maps();
         
-        // Pop dalla coda
         let key_bytes = match maps.pop_from_queue(queue_name)? {
             Some(bytes) => bytes,
             None => break,
         };
         
-        // Deserializza la chiave (contiene seq_num tradotto e flow invertito)
         let key = MapKey::from_bytes(&key_bytes)?;
         _flows_processed += 1;
         
         drop(maps);
         drop(loader);
         
-        // Pulisci ricorsivamente le entry SEQ e le corrispondenti ACK
         match cleanup_seq_recursive(bpf_state, seq_map_name, ack_map_name, key) {
             Ok(count) => {
                 total_cleaned += count;
             }
             Err(e) => {
-                eprintln!("[TRANSLATION_CLEANUP] Errore durante pulizia ricorsiva: {}", e);
+                eprintln!("[TRANSLATION_CLEANUP] Error during recursive cleanup: {}", e);
             }
         }
     }
@@ -146,7 +135,6 @@ fn process_cleanup_queue(
     Ok(total_cleaned)
 }
 
-/// Funzione principale di cleanup che processa tutte le code
 pub fn cleanup_translation_maps(
     bpf_state: &BpfState,
     cpu_threshold: f32,
@@ -156,9 +144,7 @@ pub fn cleanup_translation_maps(
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let mut total = 0;
     
-    // Processa la coda completed_flow_ingress
-    // Flusso completato in ingress (ACK ricevuto per FIN mandato)
-    // La coda contiene translated_seq con flow già invertito
+    // Flow completed on ingress (ACK received for a FIN we sent)
     if let Ok(count) = process_cleanup_queue(
         bpf_state,
         "completed_flow_ingress",
@@ -168,9 +154,7 @@ pub fn cleanup_translation_maps(
         total += count;
     }
     
-    // Processa la coda completed_flow_egress
-    // Flusso completato in egress (ACK mandato per FIN ricevuto)
-    // La coda contiene translated_seq con flow già invertito
+    // Flow completed on egress (ACK sent for a FIN we received)
     if let Ok(count) = process_cleanup_queue(
         bpf_state,
         "completed_flow_egress",
@@ -185,10 +169,10 @@ pub fn cleanup_translation_maps(
         println!("[CLEANUP] Completed flows cleanup: {} entries removed", queue_cleaned);
     }
     
-    // Logica di pulizia aggressiva:
-    // - CPU scarica: pulisci sempre in modo preventivo
-    // - CPU carica: non pulire per evitare sovraccarico
-    // - Ogni N iterazioni: pulizia forzata anche con CPU carica
+    // Aggressive cleanup logic:
+    // - CPU idle: always clean up preemptively
+    // - CPU busy: skip cleanup to avoid overload
+    // - Every N iterations: forced cleanup even when the CPU is busy
     let cpu_usage = get_cpu_usage().unwrap_or(0.0);
     let force_cleanup = iteration_count % force_cleanup_every == 0;
     
@@ -200,8 +184,6 @@ pub fn cleanup_translation_maps(
     Ok(total)
 }
 
-/// Avvia il task di cleanup periodico per le mappe di traduzione
-/// Questa funzione può essere usata sia dal server che dal client
 pub fn start_translation_cleanup_task(
     bpf_state: Arc<BpfState>,
     interval_secs: u64,

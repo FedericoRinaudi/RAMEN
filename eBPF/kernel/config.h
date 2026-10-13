@@ -17,7 +17,6 @@
 #define debug_print(fmt, ...) do {} while (0)
 #endif
 
-/* Packet size limits */
 #define MAX_PKT_SIZE 1514
 #define FRAG_BUFF_MAX_SIZE 300
 #define MAX_PADDING_UNITS 20

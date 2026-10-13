@@ -7,7 +7,6 @@ use tokio::time::{sleep, Duration};
 use std::sync::{Arc, Mutex};
 use tokio::signal;
 
-/// Struttura principale del daemon
 pub struct Daemon {
     config_path: String,
     config: ClientConfig,
@@ -16,22 +15,18 @@ pub struct Daemon {
 }
 
 impl Daemon {
-    /// Crea e inizializza un nuovo daemon
     pub fn new(config_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        log_info!("=== RAMEN Client Daemon ===\n");
-        log_debug!("Caricamento configurazione da: {}", config_path);
+        log_info!("RAMEN Client Daemon\n");
+        log_debug!("Loading configuration from: {}", config_path);
         
-        // Carica la configurazione iniziale
         let config = ClientConfig::from_file(config_path)?;
-        log_info!("✓ Configurazione caricata: {} server configurati", config.servers.len());
+        log_info!("Configuration loaded: {} servers configured", config.servers.len());
         
-        // Carica il programma eBPF
-        log_info!("\nCaricamento programma eBPF sull'interfaccia '{}'...", config.interface);
+        log_info!("\nLoading eBPF program on interface '{}'...", config.interface);
         let loader = BpfLoader::run(&config.interface)?;
-        log_info!("✓ Programma eBPF caricato con successo\n");
+        log_info!("eBPF program loaded successfully\n");
         let bpf_loader = Arc::new(Mutex::new(loader));
         
-        // Crea il client HTTP
         let http_client = HttpClient::new();
         
         Ok(Self {
@@ -42,12 +37,9 @@ impl Daemon {
         })
     }
     
-    /// Avvia il daemon
     pub async fn run(mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Carica tutte le configurazioni in eBPF all'avvio, rinnovando quelle scadute
         self.load_initial_configs().await;
         
-        // Avvia il task di cleanup delle mappe di traduzione usando i parametri di configurazione
         let bpf_state = Arc::new(BpfState {
             loader: Arc::clone(&self.bpf_loader),
         });
@@ -59,93 +51,84 @@ impl Daemon {
             timestamp_threshold_ns,
             self.config.force_cleanup_every,
         );
-        log_debug!("✓ Task di cleanup delle mappe di traduzione avviato");
-        log_debug!("  - Intervallo: {} secondi", self.config.translation_cleanup_interval_seconds);
-        log_debug!("  - Soglia CPU: {}%", self.config.cpu_threshold);
-        log_debug!("  - Threshold timestamp: {} secondi", self.config.timestamp_threshold_seconds);
-        log_debug!("  - Cleanup forzato ogni: {} iterazioni\n", self.config.force_cleanup_every);
+        log_debug!("Translation map cleanup task started");
+        log_debug!("  - Interval: {} seconds", self.config.translation_cleanup_interval_seconds);
+        log_debug!("  - CPU threshold: {}%", self.config.cpu_threshold);
+        log_debug!("  - Timestamp threshold: {} seconds", self.config.timestamp_threshold_seconds);
+        log_debug!("  - Forced cleanup every: {} iterations\n", self.config.force_cleanup_every);
         
-        // Avvia il server IPC in un task separato
         let ipc_server = IpcServer::new(self.config_path.clone(), Arc::clone(&self.bpf_loader));
         tokio::spawn(async move {
             if let Err(e) = ipc_server.run().await {
-                eprintln!("Errore nel server IPC: {}", e);
+                eprintln!("IPC server error: {}", e);
             }
         });
         
-        // Aspetta un momento per assicurarsi che il socket IPC sia creato
+        // Wait a moment to make sure the IPC socket has been created
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         
-        // Loop principale per il controllo periodico delle configurazioni con gestione dei segnali
         tokio::select! {
             result = self.main_loop() => result,
             _ = signal::ctrl_c() => {
-                log_info!("\n\nRicevuto SIGINT (Ctrl+C), cleanup in corso...");
+                log_info!("\n\nReceived SIGINT (Ctrl+C), cleaning up...");
                 self.cleanup();
                 Ok(())
             }
             _ = Self::wait_for_sigterm() => {
-                log_info!("\n\nRicevuto SIGTERM, cleanup in corso...");
+                log_info!("\n\nReceived SIGTERM, cleaning up...");
                 self.cleanup();
                 Ok(())
             }
         }
     }
     
-    /// Loop principale del daemon
     async fn main_loop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
-            log_debug!("--- Controllo configurazioni ---");
+            log_debug!("Checking configurations");
             
-            // Ricarica il file di configurazione (potrebbe essere stato modificato)
             self.reload_config();
             
-            // Controlla e aggiorna ogni server
             let config_changed = self.check_and_update_servers().await;
             
-            // Salva la configurazione aggiornata se necessario
             if config_changed {
                 self.save_config();
             }
             
-            // Pulizia configurazioni scadute dalla mappa eBPF
             if let Ok(mut loader) = self.bpf_loader.lock() {
                 match loader.cleanup_expired_configs() {
                     Ok(count) if count > 0 => {
-                        log_debug!("✓ Rimosse {} configurazioni scadute dalla mappa eBPF", count);
+                        log_debug!("Removed {} expired configurations from the eBPF map", count);
                     }
                     Err(e) => {
-                        log_error!("\n⚠ Errore nella pulizia delle configurazioni scadute: {}", e);
+                        log_error!("\nError cleaning up expired configurations: {}", e);
                     }
                     _ => {}
                 }
             }
             
-            log_debug!("\n--- Attesa {} secondi prima del prossimo controllo ---\n", 
+            log_debug!("\nWaiting {} seconds before the next check\n", 
                      self.config.check_interval_seconds);
             sleep(Duration::from_secs(self.config.check_interval_seconds)).await;
         }
     }
     
-    /// Ricarica la configurazione dal file
     fn reload_config(&mut self) {
         match ClientConfig::from_file(&self.config_path) {
             Ok(new_config) => {
                 self.config = new_config;
-                log_debug!("✓ Configurazione aggiornata dal file");
+                log_debug!("Configuration reloaded from file");
             }
             Err(e) => {
-                log_error!("⚠ Errore nel ricaricamento della configurazione: {}", e);
-                log_error!("  Continuo con la configurazione precedente");
+                log_error!("Error reloading the configuration: {}", e);
+                log_error!("  Continuing with the previous configuration");
             }
         }
     }
     
-    /// Controlla e aggiorna tutti i server configurati
     async fn check_and_update_servers(&mut self) -> bool {
         let mut config_changed = false;
         
-        // Cloniamo bpf_loader per evitare problemi di borrow con il loop mutabile
+        // Clone bpf_loader to avoid borrow issues with the mutable loop
         let bpf_loader = Arc::clone(&self.bpf_loader);
         
         for server in &mut self.config.servers {
@@ -153,50 +136,45 @@ impl Daemon {
             log_debug!("  Endpoint: http://{}:{}{}", server.server_ip, server.http_port, server.endpoint);
             log_debug!("  Service Port: {}", server.service_port);
             let expiration = server.last_sent_at + chrono::Duration::seconds(server.duration_seconds as i64);
-            log_debug!("  Ultimo invio: {} (scade: {})", server.last_sent_at, expiration);
+            log_debug!("  Last sent: {} (expires: {})", server.last_sent_at, expiration);
             
             if server.needs_renewal() {
-                log_info!("  ⚠ Server '{}': chiavi scadute, rinnovo in corso...", server.name);
+                log_info!("  Server '{}': keys expired, renewing...", server.name);
                 
-                // Genera nuove chiavi al volo (non salvate)
                 let (padding_key, dummy_key) = crate::config::ServerConfig::generate_keys();
                 let (padding_key_hex, dummy_key_hex) = (hex::encode(&padding_key), hex::encode(&dummy_key));
                 
-                // Invia la configurazione al server HTTP con le nuove chiavi
                 match self.http_client.send_config_with_keys(
                     server, 
                     &padding_key_hex, 
                     &dummy_key_hex
                 ).await {
                     Ok(_) => {
-                        log_debug!("  ✓ Configurazione inviata al server HTTP");
+                        log_debug!("  Configuration sent to the HTTP server");
                         
-                        // Se l'invio ha successo, carica in eBPF con le stesse chiavi
                         if let Err(e) = Self::load_server_to_ebpf_with_keys(&bpf_loader, server, &padding_key, &dummy_key) {
-                            log_error!("  ✗ Errore nel caricamento in eBPF: {}", e);
+                            log_error!("  Error loading into eBPF: {}", e);
                         } else {
-                            // Aggiorna il timestamp di invio
                             server.update_last_sent();
                             config_changed = true;
                             
                             let new_expiration = server.last_sent_at + chrono::Duration::seconds(server.duration_seconds as i64);
-                            log_info!("  ✓ Server '{}': configurazione rinnovata con successo", server.name);
-                            log_debug!("  ✓ Scade: {}", new_expiration);
+                            log_info!("  Server '{}': configuration renewed successfully", server.name);
+                            log_debug!("  Expires: {}", new_expiration);
                         }
                     }
                     Err(e) => {
-                        log_error!("  ✗ Errore nell'invio al server '{}': {}", server.name, e);
+                        log_error!("  Error sending to server '{}': {}", server.name, e);
                     }
                 }
             } else {
-                log_debug!("  ✓ Chiavi ancora valide");
+                log_debug!("  Keys still valid");
             }
         }
         
         config_changed
     }
     
-    /// Carica una singola configurazione del server in eBPF con chiavi specifiche
     fn load_server_to_ebpf_with_keys(
         bpf_loader: &Arc<Mutex<BpfLoader>>, 
         server: &crate::config::ServerConfig,
@@ -207,11 +185,11 @@ impl Daemon {
         
         let client_ip = match server.server_ip.parse::<std::net::IpAddr>() {
             Ok(ip) => ip,
-            Err(e) => return Err(format!("IP non valido '{}': {}", server.server_ip, e).into()),
+            Err(e) => return Err(format!("Invalid IP '{}': {}", server.server_ip, e).into()),
         };
         
-        // Usa direttamente duration_seconds dal config invece di calcolare
-        // basandosi su last_sent_at che potrebbe essere obsoleto
+        // Use duration_seconds from the config directly instead of deriving it
+        // from last_sent_at, which may be stale
         let duration = server.duration_seconds;
         
         let bpf_config = user::models::BpfConfig::new(
@@ -233,65 +211,57 @@ impl Daemon {
         Ok(())
     }
     
-    /// Carica tutte le configurazioni in eBPF all'avvio, inviando richieste HTTP per quelle scadute
     async fn load_initial_configs(&mut self) {
-        log_info!("\nCaricamento configurazioni iniziali in eBPF...");
+        log_info!("\nLoading initial configurations into eBPF...");
         let mut loaded = 0;
         let mut renewed = 0;
         
         for server in &mut self.config.servers {
-            log_debug!("  ℹ {}: invio configurazione...", server.name);
+            log_debug!("  {}: sending configuration...", server.name);
             
-            // Genera sempre nuove chiavi al volo (non salvate)
             let (padding_key, dummy_key) = crate::config::ServerConfig::generate_keys();
             let (padding_key_hex, dummy_key_hex) = (hex::encode(&padding_key), hex::encode(&dummy_key));
             
-            // Invia la configurazione al server HTTP
             match self.http_client.send_config_with_keys(server, &padding_key_hex, &dummy_key_hex).await {
                 Ok(_) => {
-                    // Se l'invio ha successo, carica in eBPF con le stesse chiavi
                     match Self::load_server_to_ebpf_with_keys(&self.bpf_loader, server, &padding_key, &dummy_key) {
                         Ok(_) => {
-                            // Aggiorna il timestamp di invio
                             server.update_last_sent();
                             
                             if server.needs_renewal() {
-                                log_info!("  ✓ {}: configurazione rinnovata e caricata", server.name);
+                                log_info!("  {}: configuration renewed and loaded", server.name);
                                 renewed += 1;
                             } else {
-                                log_debug!("  ✓ {}: configurazione inviata e caricata", server.name);
+                                log_debug!("  {}: configuration sent and loaded", server.name);
                                 loaded += 1;
                             }
                         }
                         Err(e) => {
-                            log_error!("  ✗ {}: errore nel caricamento in eBPF: {}", server.name, e);
+                            log_error!("  {}: error loading into eBPF: {}", server.name, e);
                         }
                     }
                 }
                 Err(e) => {
-                    log_error!("  ✗ {}: errore nell'invio al server HTTP: {}", server.name, e);
+                    log_error!("  {}: error sending to the HTTP server: {}", server.name, e);
                 }
             }
         }
         
-        log_info!("\n✓ Caricate {} configurazioni valide, {} rinnovate", loaded, renewed);
+        log_info!("\nLoaded {} valid configurations, {} renewed", loaded, renewed);
         
-        // Salva le configurazioni aggiornate se ci sono state modifiche
         if renewed > 0 {
             self.save_config();
         }
     }
     
-    /// Salva la configurazione su file
     fn save_config(&self) {
         if let Err(e) = self.config.save_to_file(&self.config_path) {
-            log_error!("\n⚠ Errore nel salvataggio della configurazione: {}", e);
+            log_error!("\nError saving the configuration: {}", e);
         } else {
-            log_debug!("\n✓ Configurazione salvata su file");
+            log_debug!("\nConfiguration saved to file");
         }
     }
     
-    /// Attende il segnale SIGTERM (usato da systemd)
     #[cfg(unix)]
     async fn wait_for_sigterm() {
         use tokio::signal::unix::{signal, SignalKind};
@@ -301,19 +271,17 @@ impl Daemon {
     
     #[cfg(not(unix))]
     async fn wait_for_sigterm() {
-        // Su Windows non gestiamo SIGTERM
         std::future::pending::<()>().await;
     }
     
-    /// Esegue il cleanup quando il daemon viene fermato
     fn cleanup(&self) {
-        log_info!("Detaching e rimozione programma eBPF...");
+        log_info!("Detaching and removing the eBPF program...");
         
-        // Rilascia il lock e forza il drop del BpfLoader
-        // Il Drop trait di BpfLoader farà automaticamente detach dei programmi TC
+        // Release the lock and force the BpfLoader to be dropped
+        // BpfLoader's Drop implementation detaches the TC programs automatically
         drop(self.bpf_loader.lock());
         
-        log_info!("✓ Programma eBPF detached e rimosso");
-        log_info!("Daemon terminato");
+        log_info!("eBPF program detached and removed");
+        log_info!("Daemon stopped");
     }
 }

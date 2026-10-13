@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::config::ServerConfig;
 
-/// Comandi che possono essere inviati al daemon
 #[derive(Debug, Serialize, Deserialize)]
 pub enum DaemonCommand {
     List,
@@ -27,7 +26,6 @@ pub enum DaemonCommand {
     },
 }
 
-/// Risposta del daemon ai comandi
 #[derive(Debug, Serialize, Deserialize)]
 pub enum DaemonResponse {
     Success(String),

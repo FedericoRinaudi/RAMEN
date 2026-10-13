@@ -4,7 +4,6 @@ use crate::ipc::{DaemonCommand, DaemonResponse};
 use user::bpf::BpfLoader;
 use std::sync::{Arc, Mutex};
 
-/// Helper per caricare la configurazione in eBPF
 fn load_config_to_ebpf(
     loader: &mut BpfLoader,
     server: &ServerConfig,
@@ -12,7 +11,7 @@ fn load_config_to_ebpf(
     dummy_key: &[u8],
 ) -> Result<(), String> {
     let client_ip = server.server_ip.parse::<std::net::IpAddr>()
-        .map_err(|_| format!("IP non valido: {}", server.server_ip))?;
+        .map_err(|_| format!("Invalid IP: {}", server.server_ip))?;
     
     let expiration_timestamp = server.expiration_timestamp() as u64;
     let duration = expiration_timestamp.saturating_sub(
@@ -37,10 +36,9 @@ fn load_config_to_ebpf(
     );
 
     loader.load_config(&bpf_config)
-        .map_err(|e| format!("Errore nel caricamento in eBPF: {}", e))
+        .map_err(|e| format!("Error loading into eBPF: {}", e))
 }
 
-/// Handler per il comando List
 pub async fn handle_list_command(config_path: &str) -> DaemonResponse {
     match ClientConfig::from_file(config_path) {
         Ok(config) => {
@@ -66,11 +64,10 @@ pub async fn handle_list_command(config_path: &str) -> DaemonResponse {
             
             DaemonResponse::ServerList(servers)
         }
-        Err(e) => DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+        Err(e) => DaemonResponse::Error(format!("Error loading the configuration: {}", e)),
     }
 }
 
-/// Handler per il comando Add
 pub async fn handle_add_command(
     config_path: &str,
     mut server: ServerConfig,
@@ -78,29 +75,25 @@ pub async fn handle_add_command(
 ) -> DaemonResponse {
     let mut config = match ClientConfig::from_file(config_path) {
         Ok(c) => c,
-        Err(e) => return DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+        Err(e) => return DaemonResponse::Error(format!("Error loading the configuration: {}", e)),
     };
     
-    // Verifica che il nome non esista già
     if config.servers.iter().any(|s| s.name == server.name) {
-        return DaemonResponse::Error(format!("Server '{}' già esistente", server.name));
+        return DaemonResponse::Error(format!("Server '{}' already exists", server.name));
     }
     
-    // Genera chiavi al volo (non salvate)
     let (padding_key, dummy_key) = ServerConfig::generate_keys();
     let (padding_key_hex, dummy_key_hex) = (hex::encode(&padding_key), hex::encode(&dummy_key));
     
-    // Invia al server
     let http_client = HttpClient::new();
     if let Err(e) = http_client.send_config_with_keys(&server, &padding_key_hex, &dummy_key_hex).await {
-        return DaemonResponse::Error(format!("Errore nell'invio al server: {}", e));
+        return DaemonResponse::Error(format!("Error sending to the server: {}", e));
     }
     
-    // Carica in eBPF
     if let Ok(mut loader) = bpf_loader.lock() {
         let client_ip = match server.server_ip.parse::<std::net::IpAddr>() {
             Ok(ip) => ip,
-            Err(_) => return DaemonResponse::Error(format!("IP non valido: {}", server.server_ip)),
+            Err(_) => return DaemonResponse::Error(format!("Invalid IP: {}", server.server_ip)),
         };
         
         let expiration_timestamp = server.expiration_timestamp() as u64;
@@ -126,25 +119,22 @@ pub async fn handle_add_command(
         );
         
         if let Err(e) = loader.load_config(&bpf_config) {
-            return DaemonResponse::Error(format!("Errore nel caricamento in eBPF: {}", e));
+            return DaemonResponse::Error(format!("Error loading into eBPF: {}", e));
         }
     } else {
-        return DaemonResponse::Error("Errore nel lock del loader eBPF".to_string());
+        return DaemonResponse::Error("Failed to lock the eBPF loader".to_string());
     }
     
-    // Aggiorna il timestamp di invio
     server.update_last_sent();
     
-    // Salva la configurazione
     config.servers.push(server.clone());
     if let Err(e) = config.save_to_file(config_path) {
-        return DaemonResponse::Error(format!("Errore nel salvataggio della configurazione: {}", e));
+        return DaemonResponse::Error(format!("Error saving the configuration: {}", e));
     }
     
-    DaemonResponse::Success(format!("Server '{}' aggiunto con successo", server.name))
+    DaemonResponse::Success(format!("Server '{}' added successfully", server.name))
 }
 
-/// Handler per il comando Update
 pub async fn handle_update_command(
     config_path: &str,
     name: String,
@@ -154,15 +144,14 @@ pub async fn handle_update_command(
 ) -> DaemonResponse {
     let mut config = match ClientConfig::from_file(config_path) {
         Ok(c) => c,
-        Err(e) => return DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+        Err(e) => return DaemonResponse::Error(format!("Error loading the configuration: {}", e)),
     };
     
     let server = match config.servers.iter_mut().find(|s| s.name == name) {
         Some(s) => s,
-        None => return DaemonResponse::Error(format!("Server '{}' non trovato", name)),
+        None => return DaemonResponse::Error(format!("Server '{}' not found", name)),
     };
     
-    // Aggiorna il campo
     let result = match field.as_str() {
         "server_ip" => { server.server_ip = value; Ok(()) }
         "http_port" => value.parse().map(|v| server.http_port = v).map_err(|e| format!("{}", e)),
@@ -175,44 +164,38 @@ pub async fn handle_update_command(
         "dummy_prob_max"   => value.parse().map(|v| server.dummy_prob_max = v).map_err(|e| format!("{}", e)),
         "frag_prob_min"    => value.parse().map(|v| server.frag_prob_min = v).map_err(|e| format!("{}", e)),
         "frag_prob_max"    => value.parse().map(|v| server.frag_prob_max = v).map_err(|e| format!("{}", e)),
-        _ => Err(format!("Campo '{}' non valido", field)),
+        _ => Err(format!("Invalid field '{}'", field)),
     };
     
     if let Err(e) = result {
         return DaemonResponse::Error(e);
     }
     
-    // Genera nuove chiavi al volo
     let (padding_key, dummy_key) = ServerConfig::generate_keys();
     let (padding_key_hex, dummy_key_hex) = (hex::encode(&padding_key), hex::encode(&dummy_key));
     
-    // Invia al server
     let http_client = HttpClient::new();
     if let Err(e) = http_client.send_config_with_keys(server, &padding_key_hex, &dummy_key_hex).await {
-        return DaemonResponse::Error(format!("Errore nell'invio al server: {}", e));
+        return DaemonResponse::Error(format!("Error sending to the server: {}", e));
     }
     
-    // Carica in eBPF
     if let Ok(mut loader) = bpf_loader.lock() {
         if let Err(e) = load_config_to_ebpf(&mut loader, server, &padding_key, &dummy_key) {
             return DaemonResponse::Error(e);
         }
     } else {
-        return DaemonResponse::Error("Errore nel lock del loader eBPF".to_string());
+        return DaemonResponse::Error("Failed to lock the eBPF loader".to_string());
     }
     
-    // Aggiorna il timestamp di invio
     server.update_last_sent();
     
-    // Salva la configurazione
     if let Err(e) = config.save_to_file(config_path) {
-        return DaemonResponse::Error(format!("Errore nel salvataggio della configurazione: {}", e));
+        return DaemonResponse::Error(format!("Error saving the configuration: {}", e));
     }
     
-    DaemonResponse::Success(format!("Campo '{}' aggiornato per il server '{}'", field, name))
+    DaemonResponse::Success(format!("Field '{}' updated for server '{}'", field, name))
 }
 
-/// Handler per il comando UpdateProbs (aggiorna tutti e 6 i campi probabilità in una sola chiamata)
 pub async fn handle_update_probs_command(
     config_path: &str,
     name: String,
@@ -226,12 +209,12 @@ pub async fn handle_update_probs_command(
 ) -> DaemonResponse {
     let mut config = match ClientConfig::from_file(config_path) {
         Ok(c) => c,
-        Err(e) => return DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+        Err(e) => return DaemonResponse::Error(format!("Error loading the configuration: {}", e)),
     };
 
     let server = match config.servers.iter_mut().find(|s| s.name == name) {
         Some(s) => s,
-        None => return DaemonResponse::Error(format!("Server '{}' non trovato", name)),
+        None => return DaemonResponse::Error(format!("Server '{}' not found", name)),
     };
 
     server.padding_prob_min = padding_prob_min;
@@ -246,7 +229,7 @@ pub async fn handle_update_probs_command(
 
     let http_client = HttpClient::new();
     if let Err(e) = http_client.send_config_with_keys(server, &padding_key_hex, &dummy_key_hex).await {
-        return DaemonResponse::Error(format!("Errore nell'invio al server: {}", e));
+        return DaemonResponse::Error(format!("Error sending to the server: {}", e));
     }
 
     if let Ok(mut loader) = bpf_loader.lock() {
@@ -254,19 +237,18 @@ pub async fn handle_update_probs_command(
             return DaemonResponse::Error(e);
         }
     } else {
-        return DaemonResponse::Error("Errore nel lock del loader eBPF".to_string());
+        return DaemonResponse::Error("Failed to lock the eBPF loader".to_string());
     }
 
     server.update_last_sent();
 
     if let Err(e) = config.save_to_file(config_path) {
-        return DaemonResponse::Error(format!("Errore nel salvataggio della configurazione: {}", e));
+        return DaemonResponse::Error(format!("Error saving the configuration: {}", e));
     }
 
-    DaemonResponse::Success(format!("Probabilità aggiornate per il server '{}'", name))
+    DaemonResponse::Success(format!("Probabilities updated for server '{}'", name))
 }
 
-/// Handler per il comando Renew
 pub async fn handle_renew_command(
     config_path: &str,
     name: String,
@@ -274,45 +256,39 @@ pub async fn handle_renew_command(
 ) -> DaemonResponse {
     let mut config = match ClientConfig::from_file(config_path) {
         Ok(c) => c,
-        Err(e) => return DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+        Err(e) => return DaemonResponse::Error(format!("Error loading the configuration: {}", e)),
     };
     
     let server = match config.servers.iter_mut().find(|s| s.name == name) {
         Some(s) => s,
-        None => return DaemonResponse::Error(format!("Server '{}' non trovato", name)),
+        None => return DaemonResponse::Error(format!("Server '{}' not found", name)),
     };
     
-    // Genera nuove chiavi al volo
     let (padding_key, dummy_key) = ServerConfig::generate_keys();
     let (padding_key_hex, dummy_key_hex) = (hex::encode(&padding_key), hex::encode(&dummy_key));
     
-    // Invia al server
     let http_client = HttpClient::new();
     if let Err(e) = http_client.send_config_with_keys(server, &padding_key_hex, &dummy_key_hex).await {
-        return DaemonResponse::Error(format!("Errore nell'invio al server: {}", e));
+        return DaemonResponse::Error(format!("Error sending to the server: {}", e));
     }
     
-    // Carica in eBPF
     if let Ok(mut loader) = bpf_loader.lock() {
         if let Err(e) = load_config_to_ebpf(&mut loader, server, &padding_key, &dummy_key) {
             return DaemonResponse::Error(e);
         }
     } else {
-        return DaemonResponse::Error("Errore nel lock del loader eBPF".to_string());
+        return DaemonResponse::Error("Failed to lock the eBPF loader".to_string());
     }
     
-    // Aggiorna il timestamp di invio
     server.update_last_sent();
     
-    // Salva la configurazione
     if let Err(e) = config.save_to_file(config_path) {
-        return DaemonResponse::Error(format!("Errore nel salvataggio della configurazione: {}", e));
+        return DaemonResponse::Error(format!("Error saving the configuration: {}", e));
     }
     
-    DaemonResponse::Success(format!("Chiavi rinnovate per il server '{}'", name))
+    DaemonResponse::Success(format!("Keys renewed for server '{}'", name))
 }
 
-/// Handler per il comando Status
 pub async fn handle_status_command(config_path: &str, uptime_seconds: u64) -> DaemonResponse {
     match ClientConfig::from_file(config_path) {
         Ok(config) => {
@@ -328,11 +304,10 @@ pub async fn handle_status_command(config_path: &str, uptime_seconds: u64) -> Da
             };
             DaemonResponse::Status(status)
         }
-        Err(e) => DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+        Err(e) => DaemonResponse::Error(format!("Error loading the configuration: {}", e)),
     }
 }
 
-/// Handler per il comando SetCleanupParams
 async fn handle_set_cleanup_params(
     config_path: &str,
     interval: Option<u64>,
@@ -342,45 +317,43 @@ async fn handle_set_cleanup_params(
 ) -> DaemonResponse {
     let mut config = match ClientConfig::from_file(config_path) {
         Ok(c) => c,
-        Err(e) => return DaemonResponse::Error(format!("Errore nel caricamento della configurazione: {}", e)),
+        Err(e) => return DaemonResponse::Error(format!("Error loading the configuration: {}", e)),
     };
     
     let mut changes = Vec::new();
     
     if let Some(val) = interval {
         config.translation_cleanup_interval_seconds = val;
-        changes.push(format!("intervallo: {}s", val));
+        changes.push(format!("interval: {}s", val));
     }
     
     if let Some(val) = cpu_threshold {
         config.cpu_threshold = val;
-        changes.push(format!("soglia CPU: {}%", val));
+        changes.push(format!("CPU threshold: {}%", val));
     }
     
     if let Some(val) = timestamp_threshold {
         config.timestamp_threshold_seconds = val;
-        changes.push(format!("threshold timestamp: {}s", val));
+        changes.push(format!("timestamp threshold: {}s", val));
     }
     
     if let Some(val) = force_cleanup_every {
         config.force_cleanup_every = val;
-        changes.push(format!("cleanup forzato ogni: {} iterazioni", val));
+        changes.push(format!("forced cleanup every: {} iterations", val));
     }
     
     if changes.is_empty() {
-        return DaemonResponse::Error("Nessun parametro da modificare".to_string());
+        return DaemonResponse::Error("No parameter to change".to_string());
     }
     
-    // Salva la configurazione nel file YAML
     if let Err(e) = config.save_to_file(config_path) {
-        return DaemonResponse::Error(format!("Errore nel salvataggio della configurazione: {}", e));
+        return DaemonResponse::Error(format!("Error saving the configuration: {}", e));
     }
     
-    let msg = format!("Parametri di cleanup aggiornati (effettivi al prossimo riavvio): {}", changes.join(", "));
+    let msg = format!("Cleanup parameters updated (effective after the next restart): {}", changes.join(", "));
     DaemonResponse::Success(msg)
 }
 
-/// Gestisce un singolo comando IPC
 pub async fn handle_command(
     command: DaemonCommand,
     config_path: &str,
@@ -411,7 +384,7 @@ pub async fn handle_command(
             handle_set_cleanup_params(config_path, interval, cpu_threshold, timestamp_threshold, force_cleanup_every).await
         }
         DaemonCommand::Shutdown => {
-            DaemonResponse::Success("Daemon in chiusura...".to_string())
+            DaemonResponse::Success("Daemon shutting down...".to_string())
         }
     }
 }

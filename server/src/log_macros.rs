@@ -1,7 +1,3 @@
-/// Macro per il logging condizionale basato sul profilo di compilazione
-/// In debug: stampa tutti i log
-/// In release: stampa solo errori e operazioni critiche
-
 #[macro_export]
 macro_rules! log_debug {
     ($($arg:tt)*) => {

@@ -27,7 +27,6 @@
    b = ROR32(b, 7); \
 }
 
-//Message schedule SIGMA
 static const __u8 sigma[10][16] =
 {
    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
@@ -42,7 +41,6 @@ static const __u8 sigma[10][16] =
    {10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0}
 };
  
-//Initialization vector
 static const __u32 iv[8] =
 {
    0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
@@ -61,7 +59,6 @@ static __always_inline void blake2s_compress(__u32 *m, __u32 *h, __u32 *v)
    }
    #endif
  
-   //Cryptographic mixing
    #pragma unroll
    for(int i = 0; i < 10; i++)
    {
@@ -81,7 +78,6 @@ static __always_inline void blake2s_compress(__u32 *m, __u32 *h, __u32 *v)
       G(v[3], v[4], v[9],  v[14], m[sigma[i][14]], m[sigma[i][15]]);
    }
  
-   //XOR the two halves
    #pragma unroll
    for(int i = 0; i < 8; i++)
    {
@@ -114,7 +110,6 @@ static __always_inline void blake2sCompute(const __u8 *key, const __u8 *data, __
    v[12] ^= 96;
    v[14] = ~v[14];
    blake2s_compress(m, digest, v);
-   //Copy the resulting digest
    #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
    #pragma unroll
    for(int i = 0; i < 8; i++)

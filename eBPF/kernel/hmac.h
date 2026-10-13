@@ -9,7 +9,6 @@
 #include "blake2s.h"
 #include "checksum.h"
 
-/* Add keyed BLAKE2s authentication tag to packet */
 static __always_inline __s8 add_hmac(struct __sk_buff *skb, __u8 *secret_key) {
     __u32 digest[8];
     __u8 message[32];
@@ -27,7 +26,6 @@ static __always_inline __s8 add_hmac(struct __sk_buff *skb, __u8 *secret_key) {
     return 1;
 }
 
-/* Remove and verify keyed BLAKE2s authentication tag */
 static __always_inline __s8 remove_hmac(struct __sk_buff *skb, __u32 message_start_pos, __u8 *secret_key) {
     __u8 message[32];
     __u8 received_tag[32];
@@ -46,7 +44,6 @@ static __always_inline __s8 remove_hmac(struct __sk_buff *skb, __u32 message_sta
     blake2sCompute(secret_key, message, calculated_digest);
     
     if (memcmp(calculated_digest, received_tag, HASH_LEN) != 0) {
-        //debug_print("[REMOVE_HMAC] HMAC verification failed - invalid tag");
         return 0;
     }
     

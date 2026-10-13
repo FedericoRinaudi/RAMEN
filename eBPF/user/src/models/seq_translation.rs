@@ -1,5 +1,4 @@
-/// Rappresenta una chiave nella mappa di traduzione dei numeri di sequenza
-/// Corrisponde a `struct map_key` in seq_num_translation.h
+/// Matches `struct map_key` in seq_num_translation.h
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct MapKey {
@@ -7,19 +6,17 @@ pub struct MapKey {
     pub seq: u32,
 }
 
-/// Rappresenta le informazioni di un flusso TCP
-/// Corrisponde a `struct flow_info` in network_utils.h
+/// Matches `struct flow_info` in network_utils.h
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct FlowInfo {
-    pub saddr: u32,  // source IP address
-    pub daddr: u32,  // destination IP address
-    pub sport: u16,  // source port
-    pub dport: u16,  // destination port
+    pub saddr: u32,
+    pub daddr: u32,
+    pub sport: u16,
+    pub dport: u16,
 }
 
-/// Rappresenta un valore nella mappa di traduzione dei numeri di sequenza
-/// Corrisponde a `struct map_value` in seq_num_translation.h
+/// Matches `struct map_value` in seq_num_translation.h
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct MapValue {
@@ -30,14 +27,12 @@ pub struct MapValue {
 }
 
 impl MapKey {
-    /// Converte la struttura in bytes per interagire con le mappe BPF
     pub fn to_bytes(&self) -> Vec<u8> {
         let size = std::mem::size_of::<MapKey>();
         let ptr = self as *const MapKey as *const u8;
         unsafe { std::slice::from_raw_parts(ptr, size).to_vec() }
     }
 
-    /// Crea una MapKey da bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
         if bytes.len() != std::mem::size_of::<MapKey>() {
             return Err("Invalid byte length for MapKey".into());
@@ -48,7 +43,6 @@ impl MapKey {
 }
 
 impl MapValue {
-    /// Crea una MapValue da bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<dyn std::error::Error>> {
         let expected = std::mem::size_of::<MapValue>();
         if bytes.len() != expected {

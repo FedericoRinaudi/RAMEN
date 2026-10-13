@@ -1,4 +1,3 @@
-// Questo modulo è stato spostato in shared/cleanup/monitoring.rs
-// Mantenuto solo per compatibilità, ma ora esporta le funzioni da shared
+// Kept only for compatibility; it now re-exports the functions from the user crate
 pub use user::get_cpu_usage;
 

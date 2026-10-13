@@ -37,7 +37,6 @@ enum tail_call_index_in {
     TAIL_CALL_INGRESS_NUM_ENTRIES
 };
 
-// Forward declarations for tail call map
 SEC("classifier") int fragmentation_clone_to_packet(struct __sk_buff *skb);
 SEC("classifier") int dummy_clone_to_packet(struct __sk_buff *skb);
 SEC("classifier") int tcp_state_init_eg(struct __sk_buff *skb);
@@ -51,7 +50,6 @@ SEC("classifier") int manage_tcp_state_translations_eg(struct __sk_buff *skb);
 SEC("classifier") int manage_tcp_state_translations_in(struct __sk_buff *skb);
 SEC("classifier") int recompute_tcp_checksum(struct __sk_buff *skb);
 
-// Tail call program array map
 struct {
      __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
      __uint(key_size, sizeof(u32));
@@ -71,7 +69,6 @@ struct {
  };
 
 
-// Tail call program array map
 struct {
      __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
      __uint(key_size, sizeof(u32));
@@ -86,8 +83,6 @@ struct {
          [TAIL_CALL_RECOMPUTE_CHECKSUM_IN] = (void *)&recompute_tcp_checksum
     },
  };
-
-/* eBPF program sections using modular functions */
 
 SEC("classifier")
 int fragmentation_clone_to_packet(struct __sk_buff *skb) {

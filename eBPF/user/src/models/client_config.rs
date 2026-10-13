@@ -5,7 +5,7 @@ use std::mem;
 pub struct ClientConfigKey {
     pub ip_addr: u32,
     pub server_port: u16,
-    pub _padding: u16, // Padding esplicito per l'allineamento
+    pub _padding: u16, // Explicit padding for alignment
 }
 
 impl ClientConfigKey {
@@ -23,24 +23,24 @@ impl ClientConfigKey {
     }
 }
 
-/// Struttura valore per la mappa BPF (corrisponde a struct client_config in C).
+/// Value struct for the BPF map (matches struct client_config in C).
 ///
 /// Layout (offset / size):
 ///  0  32  padding_key
 /// 32  32  dummy_key
 /// 64   8  expiration_time (u64)
-/// 72   1  padding_probability  (corrente, aggiornata da eBPF)
+/// 72   1  padding_probability  (current, updated by eBPF)
 /// 73   1  padding_prob_min
 /// 74   1  padding_prob_max
-/// 75   1  dummy_probability    (corrente)
+/// 75   1  dummy_probability    (current)
 /// 76   1  dummy_prob_min
 /// 77   1  dummy_prob_max
-/// 78   1  frag_probability     (corrente)
+/// 78   1  frag_probability     (current)
 /// 79   1  frag_prob_min
 /// 80   1  frag_prob_max
-/// 81   7  _pad                 (allineamento a 8 byte)
-/// 88   8  prob_timestamp (u64) (ktime_get_ns dell'ultimo refresh)
-/// totale: 96 byte
+/// 81   7  _pad                 (8-byte alignment)
+/// 88   8  prob_timestamp (u64) (ktime_get_ns of the last refresh)
+/// total: 96 bytes
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct ClientConfigValue {
@@ -76,8 +76,8 @@ impl ClientConfigValue {
             padding_key: [0u8; 32],
             dummy_key: [0u8; 32],
             expiration_time,
-            // Probabilità correnti inizializzate a min; eBPF le sovrascrive al primo pacchetto
-            // perché prob_timestamp = 0 garantisce che il refresh scatti immediatamente.
+            // Current probabilities start at min; eBPF overwrites them on the first packet
+            // because prob_timestamp = 0 guarantees the refresh triggers immediately.
             padding_probability: padding_prob_min,
             padding_prob_min,
             padding_prob_max,
@@ -106,7 +106,7 @@ impl ClientConfigValue {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
         if bytes.len() != mem::size_of::<Self>() {
-            return Err("Lunghezza byte non valida per ClientConfigValue");
+            return Err("Invalid byte length for ClientConfigValue");
         }
 
         let value = unsafe {
@@ -115,7 +115,6 @@ impl ClientConfigValue {
         Ok(value)
     }
 
-    /// Verifica se le chiavi sono scadute
     pub fn is_expired(&self, current_time: u64) -> bool {
         self.expiration_time < current_time
     }

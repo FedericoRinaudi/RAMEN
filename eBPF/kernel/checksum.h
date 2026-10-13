@@ -31,7 +31,6 @@ static __always_inline __u16 fold_csum(__u32 sum)
     return (__u16)sum;
 }
 
-/* Recompute TCP checksum for the entire packet */
 static __always_inline __s8 recompute_tcp_checksum_internal(struct __sk_buff *skb) {
 
     debug_print("[RECOMPUTE_CSUM] START: len=%u", skb->len);
@@ -102,7 +101,6 @@ static __always_inline __s8 recompute_tcp_checksum_internal(struct __sk_buff *sk
 
     __u8 tcp_header_off = sizeof(struct ethhdr) + ip_header_len;
 
-    /* zero out checksum field */
     __u16 zero = 0;
     if(bpf_skb_store_bytes(skb, tcp_header_off + offsetof(struct tcphdr, check), &zero, sizeof(zero), 0) < 0) {
         debug_print("[RECOMPUTE_CSUM] ERROR: Failed to zero checksum field");

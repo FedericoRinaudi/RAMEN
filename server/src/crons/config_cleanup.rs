@@ -5,7 +5,6 @@ use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{Rocket, Build};
 use crate::BpfState;
 
-/// Avvia il task di cleanup periodico
 fn start_cleanup_task(bpf_state: Arc<BpfState>, interval_secs: u64) {
     tokio::spawn(async move {
         let mut interval = time::interval(Duration::from_secs(interval_secs));
@@ -25,7 +24,6 @@ fn start_cleanup_task(bpf_state: Arc<BpfState>, interval_secs: u64) {
     });
 }
 
-/// Fairing per avviare il task di cleanup quando il server è pronto
 pub struct ConfigCleanupFairing {
     pub interval_secs: u64,
 }
@@ -41,7 +39,7 @@ impl Fairing for ConfigCleanupFairing {
 
     async fn on_ignite(&self, rocket: Rocket<Build>) -> rocket::fairing::Result {
         let bpf_state = rocket.state::<Arc<BpfState>>()
-            .expect("BpfState non trovato nello stato di Rocket");
+            .expect("BpfState not found in Rocket state");
         
         start_cleanup_task(Arc::clone(bpf_state), self.interval_secs);
         log_debug!("[CONFIG_CLEANUP] Task started with interval of {} seconds", self.interval_secs);

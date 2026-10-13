@@ -1,16 +1,13 @@
 #ifndef __CONSTS_H
 #define __CONSTS_H
-/* Network protocol constants */
 #define ETH_P_IP    0x0800
 #define IPPROTO_TCP 6
 #define ETH_HLEN    14
 
-/* Traffic Control action codes */  
 #define TC_ACT_OK   0
 #define TC_ACT_SHOT 2
 #define TC_ACT_REDIRECT 7
 
-/* Skb mark types */
 #define SKB_MARK_TYPE_NONE 0
 #define SKB_MARK_TYPE_FRAGMENT_CLONE 1
 #define SKB_MARK_TYPE_DUMMY_CLONE 2

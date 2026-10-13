@@ -1,10 +1,6 @@
-# wf-eval/ebpf/Makefile
-# Build: BPF object + user-space loader (libbpf)
-
 BPF_CLANG ?= clang-15
 BPF_CFLAGS := -O2 -g -Wall -Werror -target bpf
 
-# Arch mapping for __TARGET_ARCH_*
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_M),x86_64)
   BPF_CFLAGS += -D__TARGET_ARCH_x86
@@ -14,18 +10,14 @@ else ifeq ($(UNAME_M),arm64)
   BPF_CFLAGS += -D__TARGET_ARCH_arm64
 endif
 
-# User-space
 CC ?= gcc
 UCFLAGS := -O2 -g -Wall
 ULIBS := -lbpf -lelf -lz
 
-# Default target - build everything
 all: RAMEN
 
-# RAMEN BPF components
 RAMEN: RAMEN.bpf.o loader
 
-# Individual build rules
 # IS_SERVER can be overridden: make IS_SERVER=1 for server, make IS_SERVER=0 for client
 # DEBUG can be overridden: make DEBUG=1 for debug, make DEBUG=0 for release
 IS_SERVER ?= 0
@@ -37,7 +29,6 @@ RAMEN.bpf.o: RAMEN.bpf.c config.h network_utils.h checksum.h hmac.h padding.h fr
 loader: loader.c
 	$(CC) $(UCFLAGS) $< -o $@ $(ULIBS)
 
-# Clean up
 clean:
 	rm -f *.bpf.o loader
 

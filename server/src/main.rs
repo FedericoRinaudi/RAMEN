@@ -18,7 +18,6 @@ use guards::ClientRealAddr;
 use services::ClientConfigService;
 use user::{BpfLoader, BpfState};
 
-// Struttura per le probabilità di default
 pub struct DefaultProbabilities {
     pub padding_min: u8,
     pub padding_max: u8,
@@ -28,7 +27,6 @@ pub struct DefaultProbabilities {
     pub frag_max: u8,
 }
 
-// Endpoint per inserire la configurazione del client nella mappa BPF
 #[post("/config", format = "json", data = "<config>")]
 fn set_config(
     bpf_state: &rocket::State<Arc<BpfState>>,
@@ -36,9 +34,8 @@ fn set_config(
     config: Json<ClientConfig>,
     client_ip: ClientRealAddr,
 ) -> Result<String, Status> {
-    // Parsing delle chiavi dal DTO e impostazione probabilità default
     let mut config = config.into_inner();
-    log_debug!("[CONFIG] Ricevute prob: pad=[{:?},{:?}] dummy=[{:?},{:?}] frag=[{:?},{:?}]",
+    log_debug!("[CONFIG] Received probs: pad=[{:?},{:?}] dummy=[{:?},{:?}] frag=[{:?},{:?}]",
              config.padding_prob_min, config.padding_prob_max,
              config.dummy_prob_min,   config.dummy_prob_max,
              config.frag_prob_min,    config.frag_prob_max);
@@ -49,13 +46,12 @@ fn set_config(
         default_probs.frag_min,    default_probs.frag_max,
     );
     let (pad_min, pad_max, dum_min, dum_max, fr_min, fr_max) = config.get_probabilities();
-    log_debug!("[CONFIG] Dopo default: pad=[{},{}] dummy=[{},{}] frag=[{},{}]",
+    log_debug!("[CONFIG] After defaults: pad=[{},{}] dummy=[{},{}] frag=[{},{}]",
              pad_min, pad_max, dum_min, dum_max, fr_min, fr_max);
 
     let (padding_key, dummy_key) = config.parse_keys()
         .map_err(|_| Status::BadRequest)?;
 
-    // Crea la configurazione BPF
     let bpf_config = user::models::BpfConfig::new(
         padding_key,
         dummy_key,
@@ -70,16 +66,15 @@ fn set_config(
         fr_max,
     );
     
-    // Inserimento tramite il service
     let (ip, port, expiration_time) = ClientConfigService::insert_config(
         bpf_state.inner(),
         bpf_config,
     ).map_err(|e| {
-        log_error!("Errore inserimento configurazione: {}", e);
+        log_error!("Error inserting configuration: {}", e);
         Status::InternalServerError
     })?;
     
-    Ok(format!("Configurazione inserita correttamente per IP:porta {}:{} (scadenza: {})", ip, port, expiration_time))
+    Ok(format!("Configuration inserted for IP:port {}:{} (expiration: {})", ip, port, expiration_time))
 }
 
 #[launch]
@@ -87,27 +82,25 @@ fn rocket() -> _ {
     let rocket = rocket::build();
     let ifname = config::Config::get_interface(&rocket);
     
-    // Leggi gli intervalli di cleanup dalla configurazione
     let keys_cleanup_interval = rocket.figment()
         .extract_inner::<u64>("keys_cleanup_interval_seconds")
-        .unwrap_or(60); // Default: 60 secondi
+        .unwrap_or(60);
     
     let translation_cleanup_interval = rocket.figment()
         .extract_inner::<u64>("translation_cleanup_interval_seconds")
-        .unwrap_or(5); // Default: 5 secondi (più frequente per le traduzioni)
+        .unwrap_or(5);
     
-    // Leggi le soglie per la pulizia aggressiva
     let cpu_threshold = rocket.figment()
         .extract_inner::<f32>("cpu_threshold")
-        .unwrap_or(70.0); // Default: 70%
+        .unwrap_or(70.0);
     
     let timestamp_threshold_seconds = rocket.figment()
         .extract_inner::<u64>("timestamp_threshold_seconds")
-        .unwrap_or(3600); // Default: 1 ora
+        .unwrap_or(3600);
     
     let force_cleanup_every = rocket.figment()
         .extract_inner::<u32>("force_cleanup_every")
-        .unwrap_or(12); // Default: ogni 12 iterazioni
+        .unwrap_or(12);
     
     let default_padding_prob_min = rocket.figment()
         .extract_inner::<u8>("default_padding_prob_min")
@@ -128,7 +121,6 @@ fn rocket() -> _ {
         .extract_inner::<u8>("default_frag_prob_max")
         .unwrap_or(70);
 
-    // Carica e attacca i programmi eBPF
     let bpf_loader = BpfLoader::run(&ifname).unwrap_or_else(|e| {
         panic!("Error running eBPF program: {}", e);
     });

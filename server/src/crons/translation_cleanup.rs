@@ -3,7 +3,6 @@ use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{Rocket, Build};
 use user::{BpfState, start_translation_cleanup_task};
 
-/// Fairing per avviare il task di cleanup delle traduzioni quando il server è pronto
 pub struct TranslationCleanupFairing {
     pub interval_secs: u64,
     pub cpu_threshold: f32,
@@ -22,9 +21,8 @@ impl Fairing for TranslationCleanupFairing {
 
     async fn on_ignite(&self, rocket: Rocket<Build>) -> rocket::fairing::Result {
         let bpf_state = rocket.state::<Arc<BpfState>>()
-            .expect("BpfState non trovato nello stato di Rocket");
+            .expect("BpfState not found in Rocket state");
         
-        // Converti secondi in nanosecondi
         let timestamp_threshold_ns = self.timestamp_threshold_secs * 1_000_000_000;
         
         start_translation_cleanup_task(

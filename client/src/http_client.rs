@@ -1,7 +1,6 @@
 use serde::Serialize;
 use crate::config::ServerConfig;
 
-/// Payload da inviare al server
 #[derive(Debug, Serialize)]
 pub struct ConfigPayload {
     pub padding_key: String,
@@ -16,30 +15,27 @@ pub struct ConfigPayload {
     pub frag_prob_max: u8,
 }
 
-/// Client HTTP per comunicare con i server
 pub struct HttpClient {
     client: reqwest::Client,
 }
 
 impl HttpClient {
     pub fn new() -> Self {
-        // Client che accetta certificati autofirmati (solo per sviluppo/test)
+        // Client that accepts self-signed certificates (development/testing only)
         let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true) // Rimuovi in produzione!
+            .danger_accept_invalid_certs(true)
             .build()
             .expect("Failed to build HTTP client");
         
         Self { client }
     }
     
-    /// Crea un client che verifica i certificati (per produzione)
     pub fn new_secure() -> Self {
         Self {
             client: reqwest::Client::new(),
         }
     }
     
-    /// Invia la configurazione ad un server con chiavi specifiche
     pub async fn send_config_with_keys(
         &self, 
         server: &ServerConfig,
@@ -72,7 +68,7 @@ impl HttpClient {
         } else {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            Err(format!("Server restituito errore {}: {}", status, error_text).into())
+            Err(format!("Server returned error {}: {}", status, error_text).into())
         }
     }
 }

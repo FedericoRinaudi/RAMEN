@@ -12,7 +12,6 @@
 #include "skb_mark.h"
 #include "client_config.h"
 
-/* Remove all padding HMACs from packet */
 static __always_inline __s8 remove_padding_internal(struct __sk_buff *skb) {
     __u8 i, ip_header_len, tcp_header_len, tcp_payload_offset, result;
     result = extract_tcp_ip_header_lengths_simple(skb, &ip_header_len, &tcp_header_len);
@@ -60,7 +59,6 @@ static __always_inline __s8 remove_padding_internal(struct __sk_buff *skb) {
     return 1;
 }
 
-/* Add padding HMACs to packet */
 static __always_inline __s8 add_padding_internal(struct __sk_buff *skb) {
     __s8 hmac_result;
     __u8 i, tcp_payload_offset, ip_header_len, tcp_header_len;
@@ -72,13 +70,11 @@ static __always_inline __s8 add_padding_internal(struct __sk_buff *skb) {
         return extract_result;
     }
     
-    // Get padding config and probability for this IP and port
     struct client_config *config = get_client_config_egress(skb, ip_header_len);
     if (!config) {
         return -1;
     }
     
-    // Check probability
     if((bpf_get_prandom_u32() % 100) > config->padding_probability){
         return 1;
     }

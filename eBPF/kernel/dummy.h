@@ -28,7 +28,7 @@ static __always_inline __s8 is_dummy(struct __sk_buff *skb) {
 static __always_inline __u8 dummy_clone_to_packet_internal(struct __sk_buff *skb) {
     __u16 payload_len = skb_mark_get_len(skb);
     if(payload_len == 0) {
-        return TC_ACT_SHOT; // Nothing to do
+        return TC_ACT_SHOT;
     }
     __u16 old_ip_len, new_ip_len;
     __u8 ip_header_len, tcp_header_len;
@@ -55,7 +55,6 @@ static __always_inline __u8 dummy_clone_to_packet_internal(struct __sk_buff *skb
         }
     }
 
-    // Get dummy config for this IP and port
     struct client_config *config = get_client_config_egress(skb, ip_header_len);
     if (!config) {
         return TC_ACT_SHOT;
@@ -87,7 +86,7 @@ static __always_inline __u8 dummy_clone_to_packet_internal(struct __sk_buff *skb
         return TC_ACT_SHOT;
     }
         
-    return 1; // Signal to continue with fragmentation
+    return 1;
 }
 
 static __always_inline __u8 insert_dummy_packet_internal(struct __sk_buff *skb) {
@@ -100,23 +99,22 @@ static __always_inline __u8 insert_dummy_packet_internal(struct __sk_buff *skb) 
                              + tcp_header_len;
     
     if (skb_mark_get_redirect_count(skb) > 8 ) {
-        debug_print("[DUMMY] Skip: payload troppo piccolo o troppi redirect (redirects=%u)", skb_mark_get_redirect_count(skb));
-        return 1; // No fragmentation for small payloads
+        debug_print("[DUMMY] Skip: payload too small or too many redirects (redirects=%u)", skb_mark_get_redirect_count(skb));
+        return 1;
     }
 
-    // Get dummy config and probability for this IP and port
     struct client_config *config = get_client_config_egress(skb, ip_header_len);
     if (!config) {
         return -1;
     }
     
     if ((bpf_get_prandom_u32() % 100) > config->dummy_probability) {
-        debug_print("[DUMMY] Skip: controllo probabilità");
-        return 1; // No fragmentation for small payloads
+        debug_print("[DUMMY] Skip: probability check");
+        return 1;
     }
    
     // Calculate dummy packet size (minimum 64 bytes)
-    u16 dummy_payload_len = (bpf_get_prandom_u32() % (MAX_PKT_SIZE - tcp_payload_offset - 64)) + 64; // size of the dummy payload
+    u16 dummy_payload_len = (bpf_get_prandom_u32() % (MAX_PKT_SIZE - tcp_payload_offset - 64)) + 64;
     debug_print("[DUMMY] Inserting dummy packet: dummy_payload=%u bytes", dummy_payload_len);
     skb_mark_increment_redirect_count(skb);
     skb_mark_set_len(skb, dummy_payload_len);
@@ -126,7 +124,7 @@ static __always_inline __u8 insert_dummy_packet_internal(struct __sk_buff *skb) 
         return TC_ACT_SHOT;
     }
     skb_mark_set_type(skb, SKB_MARK_TYPE_NONE);
-    return 1; // Signal to continue processing
+    return 1;
 }
 
 #endif // DUMMY_H

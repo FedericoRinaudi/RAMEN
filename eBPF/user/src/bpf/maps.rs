@@ -1,39 +1,33 @@
 use std::os::fd::{AsRawFd, AsFd};
 use libbpf_rs::MapCore;
 
-/// Wrapper per gestire le operazioni sulle mappe eBPF
 pub struct BpfMapManager<'a> {
     object: &'a mut libbpf_rs::Object,
 }
 
 impl<'a> BpfMapManager<'a> {
-    /// Crea un nuovo manager per le mappe eBPF
     pub fn new(object: &'a mut libbpf_rs::Object) -> Self {
         Self { object }
     }
     
-    /// Elenca tutte le mappe disponibili
     pub fn list(&self) -> Vec<String> {
         self.object.maps().map(|m| m.name().to_string_lossy().to_string()).collect()
     }
     
-    /// Ottiene una mappa per nome
     fn get_map(&self, name: &str) -> Result<libbpf_rs::Map<'_>, String> {
         self.object
             .maps()
             .find(|m| m.name().to_string_lossy() == name)
-            .ok_or_else(|| format!("Mappa '{}' non trovata", name))
+            .ok_or_else(|| format!("Map '{}' not found", name))
     }
     
-    /// Ottiene una mappa mutabile per nome
     fn get_map_mut(&mut self, name: &str) -> Result<libbpf_rs::MapMut<'_>, String> {
         self.object
             .maps_mut()
             .find(|m| m.name().to_string_lossy() == name)
-            .ok_or_else(|| format!("Mappa '{}' non trovata", name))
+            .ok_or_else(|| format!("Map '{}' not found", name))
     }
     
-    /// Inserisce o aggiorna un elemento in una mappa
     pub fn update(
         &mut self,
         map_name: &str,
@@ -46,7 +40,6 @@ impl<'a> BpfMapManager<'a> {
         Ok(())
     }
     
-    /// Rimuove un elemento da una mappa
     pub fn delete(
         &mut self,
         map_name: &str,
@@ -57,7 +50,6 @@ impl<'a> BpfMapManager<'a> {
         Ok(())
     }
     
-    /// Legge un elemento da una mappa
     pub fn lookup(
         &self,
         map_name: &str,
@@ -67,7 +59,6 @@ impl<'a> BpfMapManager<'a> {
         Ok(map.lookup(key, libbpf_rs::MapFlags::ANY)?)
     }
     
-    /// Ottiene la prossima chiave da una mappa
     pub fn get_next_key(
         &self,
         map_name: &str,
@@ -92,7 +83,6 @@ impl<'a> BpfMapManager<'a> {
         }
     }
 
-    /// Itera tutte le entry di una mappa
     pub fn iter_keys(
         &self,
         map_name: &str,
@@ -119,8 +109,7 @@ impl<'a> BpfMapManager<'a> {
         Ok(keys)
     }
 
-    /// Pop un elemento da una coda BPF (BPF_MAP_TYPE_QUEUE)
-    /// Usa bpf_map_lookup_and_delete_elem per prelevare e rimuovere atomicamente
+    /// Uses bpf_map_lookup_and_delete_elem to fetch and remove atomically
     pub fn pop_from_queue(
         &self,
         queue_name: &str,

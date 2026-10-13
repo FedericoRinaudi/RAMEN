@@ -1,5 +1,5 @@
 [Unit]
-Description=RAMEN Client Daemon - VPN Traffic Encryption with eBPF
+Description=RAMEN Client Daemon
 Documentation=https://github.com/FedericoRinaudi/RAMEN
 After=network-online.target
 Wants=network-online.target
@@ -14,7 +14,6 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
-# Security hardening
 NoNewPrivileges=false
 PrivateTmp=false
 ProtectSystem=strict
@@ -23,7 +22,6 @@ ReadWritePaths=/etc/RAMEN /var/log/RAMEN /tmp
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_BPF CAP_SYS_ADMIN CAP_SYS_RESOURCE
 AmbientCapabilities=CAP_NET_ADMIN CAP_BPF CAP_SYS_ADMIN CAP_SYS_RESOURCE
 
-# Resource limits
 LimitNOFILE=65536
 LimitNPROC=512
 

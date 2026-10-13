@@ -7,7 +7,7 @@
  * skb->mark encoding (32 bits total):
  *
  * [31-16] len (16 bits)
- * [15-12] checksum_flag (4 bits)
+ * [15-12] unused (4 bits)
  * [11-8]  redirect_count (4 bits)
  * [7-0]   type (8 bits)
  */
@@ -31,13 +31,11 @@
         skb->mark = new_mark;                                                     \
     }
 
-/* Definizione dei campi: LEN in bit, OFF = bit di partenza */
+/* Field definitions: LEN in bits, OFF = starting bit */
 
 SKB_MARK_DEFINE_FIELD(type,            __u8,  8,  0);
 SKB_MARK_DEFINE_FIELD(redirect_count,  __u8,  4,  8);
 SKB_MARK_DEFINE_FIELD(len,__u16,16, 16);
-
-/* helper extra non generabili in automatico (increment, reset, build) */
 
 static __always_inline void skb_mark_increment_redirect_count(struct __sk_buff *skb)
 {

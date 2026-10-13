@@ -1,6 +1,5 @@
 use std::fs;
 
-/// Ottiene l'utilizzo della CPU (media)
 pub fn get_cpu_usage() -> Result<f32, Box<dyn std::error::Error>> {
     let stat = fs::read_to_string("/proc/stat")?;
     let cpu_line = stat.lines()
@@ -9,7 +8,7 @@ pub fn get_cpu_usage() -> Result<f32, Box<dyn std::error::Error>> {
     
     let values: Vec<u64> = cpu_line
         .split_whitespace()
-        .skip(1) // salta "cpu"
+        .skip(1) // skip "cpu"
         .filter_map(|s| s.parse().ok())
         .collect();
     

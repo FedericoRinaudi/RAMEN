@@ -14,7 +14,6 @@ default_dummy_prob_max = 100
 default_frag_prob_min = 0
 default_frag_prob_max = 100
 
-# Configurazione TLS
 [default.tls]
 certs = "/path/to/cert.pem"
 key = "/path/to/key.pem"  

@@ -1,6 +1,3 @@
-/*
- * - loader.c: Simplified version that only loads eBPF programs
- */
 #define _GNU_SOURCE
 
 #include <stdio.h>
@@ -44,21 +41,18 @@ int main(int argc, char **argv) {
     
     const char *ifname = argv[1];
 
-    // Get interface index
     ifindex_g = if_nametoindex(ifname);
     if(ifindex_g == 0) { 
         perror("if_nametoindex"); 
         return 1;
     }
     
-    // Build the path to the BPF object file
     char bpf_obj_path[256];
     char *prog_dir = strdup(argv[0]);
     char *dir_path = dirname(prog_dir);
     snprintf(bpf_obj_path, sizeof(bpf_obj_path), "%s/RAMEN.bpf.o", dir_path);
     free(prog_dir);
     
-    // Load BPF object
     bpf_obj = bpf_object__open_file(bpf_obj_path, NULL);
     if (libbpf_get_error(bpf_obj)) { 
         fprintf(stderr, "Failed to open BPF object file: %s\n", bpf_obj_path);
@@ -71,11 +65,9 @@ int main(int argc, char **argv) {
         return 1; 
     }
     
-    // Find programs
     ing_prog = bpf_object__find_program_by_name(bpf_obj, "handle_ingress");
     eg_prog = bpf_object__find_program_by_name(bpf_obj, "handle_egress");
     
-    // Create TC hook
     DECLARE_LIBBPF_OPTS(bpf_tc_hook, hook, .ifindex = ifindex_g, 
                         .attach_point = BPF_TC_INGRESS | BPF_TC_EGRESS);
     int err = bpf_tc_hook_create(&hook);
@@ -85,7 +77,6 @@ int main(int argc, char **argv) {
         return 1; 
     }
     
-    // Attach ingress program
     DECLARE_LIBBPF_OPTS(bpf_tc_opts, ing_opts, .prog_fd = bpf_program__fd(ing_prog), 
                         .flags = BPF_TC_F_REPLACE);
     hook.attach_point = BPF_TC_INGRESS;
@@ -96,7 +87,6 @@ int main(int argc, char **argv) {
         return 1; 
     }
     
-    // Attach egress program
     DECLARE_LIBBPF_OPTS(bpf_tc_opts, eg_opts, .prog_fd = bpf_program__fd(eg_prog), 
                         .flags = BPF_TC_F_REPLACE);
     hook.attach_point = BPF_TC_EGRESS;
@@ -107,14 +97,12 @@ int main(int argc, char **argv) {
         return 1; 
     }
     
-    // Set up signal handlers
     signal(SIGINT, cleanup);
     signal(SIGTERM, cleanup);
     
     printf("Successfully loaded and attached eBPF programs to interface %s\n", ifname);
     printf("Press Ctrl+C to detach and exit\n");
     
-    // Keep the program running
     while (1) {
         sleep(30);
     }
