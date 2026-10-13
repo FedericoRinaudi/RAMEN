@@ -1,7 +1,7 @@
 [default]
 address = "0.0.0.0"
 port = 8000
-iface = "enp0s9"
+iface = "eth0"
 keys_cleanup_interval_seconds = 60
 translation_cleanup_interval_seconds = 5
 cpu_threshold = 5.0

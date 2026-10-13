@@ -1,6 +1,6 @@
 # This file is re-read periodically by the daemon
 
-interface: enp7s0
+interface: eth0
 
 check_interval_seconds: 120
 
@@ -11,7 +11,7 @@ force_cleanup_every: 20
 
 servers:
   - name: server_query
-    server_ip: 10.133.6.2
+    server_ip: 192.0.2.10
     http_port: 8000
     service_port: 8080     # RAMEN service port (eBPF key)
     endpoint: /config
@@ -30,7 +30,7 @@ servers:
     frag_prob_max: 100
 
   - name: server_res
-    server_ip: 10.133.6.2
+    server_ip: 192.0.2.10
     http_port: 8000
     service_port: 8081     # RAMEN service port (eBPF key)
     endpoint: /config
