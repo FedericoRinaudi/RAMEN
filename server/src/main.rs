@@ -1,7 +1,5 @@
 #[macro_use] extern crate rocket;
-
-#[macro_use]
-mod log_macros;
+#[macro_use] extern crate user;
 
 mod config;
 mod crons;

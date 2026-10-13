@@ -1,6 +1,7 @@
 pub mod bpf;
 pub mod models;
 pub mod cleanup;
+mod log_macros;
 
 pub use bpf::{BpfLoader, BpfMapManager};
 pub use models::{ClientConfigKey, ClientConfigValue, MapKey, MapValue, FlowInfo};

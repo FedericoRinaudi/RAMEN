@@ -1,5 +1,5 @@
 #[macro_use]
-mod log_macros;
+extern crate user;
 
 mod config;
 mod http_client;

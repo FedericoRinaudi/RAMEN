@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Tests several probability combinations in two modes:
-#   fixed: min=max=value (fixed probability for the whole trace)
+#   fixed: min=max=value (same fixed probability for every trace of a combination)
 #   max:   for each trace the script picks a random prob in [0,max]
 #          and sends it to the server as min=max (emulates the real behaviour of
 #          PROB_REFRESH_INTERVAL_NS, which would not trigger quickly enough
@@ -150,7 +150,7 @@ run_test() {
     echo "Pp=${padding}%  Pd=${dummy}%  Pf=${frag}%"
 
     if [ "$mode" = "fixed" ]; then
-        echo "  [fixed] setting fixed probabilities for the whole trace..."
+        echo "  [fixed] setting fixed probabilities (same for every trace of this combination)..."
         update_fixed "$padding" "$dummy" "$frag"
 
         echo "  [Query] $N_REQUESTS requests to $QUERY_SERVER"
